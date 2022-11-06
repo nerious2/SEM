@@ -1,0 +1,123 @@
+diff --git a/node_modules/react-native-fs/android/src/main/java/com/rnfs/Downloader.java b/node_modules/react-native-fs/android/src/main/java/com/rnfs/Downloader.java
+index 4da698e..bb05ff8 100644
+--- a/node_modules/react-native-fs/android/src/main/java/com/rnfs/Downloader.java
++++ b/node_modules/react-native-fs/android/src/main/java/com/rnfs/Downloader.java
+@@ -6,6 +6,14 @@ import java.io.InputStream;
+ import java.io.OutputStream;
+ import java.net.URL;
+ import java.net.HttpURLConnection;
++import javax.net.ssl.*;
++import java.security.cert.*;
++// import java.security.cert.X509Certificate;
++// import java.security.cert.CertificateException;
++// import java.security.cert.X509CertSelector;
++// import javax.net.ssl.HttpsURLConnection;
++// import javax.net.ssl.TrustManager;
++
+ import java.util.*;
+ import java.util.concurrent.atomic.AtomicBoolean;
+ 
+@@ -42,10 +50,14 @@ public class Downloader extends AsyncTask<DownloadParams, long[], DownloadResult
+   private void download(DownloadParams param, DownloadResult res) throws Exception {
+     InputStream input = null;
+     OutputStream output = null;
+-    HttpURLConnection connection = null;
++    HttpsURLConnection connection = null;
+  
+     try {
+-      connection = (HttpURLConnection)param.src.openConnection();
++ 
++      connection = (HttpsURLConnection)param.src.openConnection();
++      trustAllHosts(connection);
++      connection.getHostnameVerifier();
++      connection.setHostnameVerifier(DO_NOT_VERIFY);
+  
+       ReadableMapKeySetIterator iterator = param.headers.keySetIterator();
+  
+@@ -60,13 +72,13 @@ public class Downloader extends AsyncTask<DownloadParams, long[], DownloadResult
+       connection.connect();
+  
+       int statusCode = connection.getResponseCode();
+-      long lengthOfFile = getContentLength(connection);
++      int lengthOfFile = connection.getContentLength();
+  
+       boolean isRedirect = (
+-        statusCode != HttpURLConnection.HTTP_OK &&
++        statusCode != HttpsURLConnection.HTTP_OK &&
+         (
+-          statusCode == HttpURLConnection.HTTP_MOVED_PERM ||
+-          statusCode == HttpURLConnection.HTTP_MOVED_TEMP ||
++          statusCode == HttpsURLConnection.HTTP_MOVED_PERM ||
++          statusCode == HttpsURLConnection.HTTP_MOVED_TEMP ||
+           statusCode == 307 ||
+           statusCode == 308
+         )
+@@ -76,12 +88,12 @@ public class Downloader extends AsyncTask<DownloadParams, long[], DownloadResult
+         String redirectURL = connection.getHeaderField("Location");
+         connection.disconnect();
+  
+-        connection = (HttpURLConnection) new URL(redirectURL).openConnection();
++        connection = (HttpsURLConnection) new URL(redirectURL).openConnection();
+         connection.setConnectTimeout(5000);
+         connection.connect();
+  
+         statusCode = connection.getResponseCode();
+-        lengthOfFile = getContentLength(connection);
++        lengthOfFile = connection.getContentLength();
+       }
+       if(statusCode >= 200 && statusCode < 300) {
+         Map<String, List<String>> headers = connection.getHeaderFields();
+@@ -151,6 +163,53 @@ public class Downloader extends AsyncTask<DownloadParams, long[], DownloadResult
+     }
+   }
+   
++
++  //====================== 모든 인증서 신뢰
++  private static final TrustManager[] trustAllCerts = new TrustManager[]{new X509TrustManager() {
++    public java.security.cert.X509Certificate[] getAcceptedIssuers() {
++      return new java.security.cert.X509Certificate[]{};
++    }  
++
++    public void checkClientTrusted(X509Certificate[] chain, String authType)
++            throws CertificateException {
++    }
++
++    public void checkServerTrusted(X509Certificate[] chain, String authType)
++            throws CertificateException {
++    }
++  }};
++ 
++  /**
++   * 호스트를 인증하지 않도록 설정
++   */
++  private static final HostnameVerifier DO_NOT_VERIFY = new HostnameVerifier() {
++    public boolean verify(String hostname, SSLSession session) {
++      return true;
++    }
++  };
++ 
++  /**
++   * 모든 호스트 신뢰
++   * @param connection
++   * @return
++   */
++  private static SSLSocketFactory trustAllHosts(HttpsURLConnection connection) {
++    SSLSocketFactory oldFactory = connection.getSSLSocketFactory();
++    try {
++      SSLContext sc = SSLContext.getInstance("TLS");
++      sc.init(null, trustAllCerts, new java.security.SecureRandom());
++      SSLSocketFactory newFactory = sc.getSocketFactory();
++      connection.setSSLSocketFactory(newFactory);
++    } catch (Exception e) {
++      e.printStackTrace();
++    }
++    return oldFactory;
++  }
++ 
++//  =========
++
++
++
+   private long getContentLength(HttpURLConnection connection){
+     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+       return connection.getContentLengthLong();

@@ -1,0 +1,49 @@
+{
+  "name": "StandardEinkLauncher",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "postinstall": "jetify && patch-package",
+    "android": "react-native run-android",
+    "ios": "react-native run-ios",
+    "start": "react-native start",
+    "test": "jest",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "^1.17.10",
+    "@react-native-community/netinfo": "9.3.6",
+    "@react-navigation/native": "^6.0.8",
+    "react": "16.14.0",
+    "react-dom": "16.14.0",
+    "react-native": "0.63.4",
+    "react-native-alert-async": "^1.0.5",
+    "react-native-animated-progress": "^1.0.2",
+    "react-native-apk-installer-n": "^2.1.2",
+    "react-native-fast-image": "5.4.2",
+    "react-native-fs": "^2.19.0",
+    "react-native-gesture-handler": "1.10.3",
+    "react-native-progress-circle": "^2.1.0",
+    "react-native-responsive-dimensions": "^3.1.1",
+    "react-native-vector-icons": "^9.1.0",
+    "react-native-version-check": "^3.4.3",
+    "react-redux": "^7.2.6",
+    "redux": "^4.1.2",
+    "redux-persist": "^6.0.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.17.5",
+    "@babel/runtime": "^7.17.2",
+    "@react-native-community/eslint-config": "^3.0.1",
+    "babel-jest": "^27.5.1",
+    "eslint": "^8.9.0",
+    "jest": "^27.5.1",
+    "metro-react-native-babel-preset": "^0.68.0",
+    "patch-package": "^6.5.0",
+    "postinstall-postinstall": "^2.1.0",
+    "react-test-renderer": "16.13.1"
+  },
+  "jest": {
+    "preset": "react-native"
+  }
+}

@@ -1,0 +1,16 @@
+diff --git a/node_modules/@react-native-community/netinfo/android/src/main/java/com/reactnativecommunity/netinfo/ConnectivityReceiver.java b/node_modules/@react-native-community/netinfo/android/src/main/java/com/reactnativecommunity/netinfo/ConnectivityReceiver.java
+index baeff73..e9b8549 100644
+--- a/node_modules/@react-native-community/netinfo/android/src/main/java/com/reactnativecommunity/netinfo/ConnectivityReceiver.java
++++ b/node_modules/@react-native-community/netinfo/android/src/main/java/com/reactnativecommunity/netinfo/ConnectivityReceiver.java
+@@ -125,9 +125,8 @@ public abstract class ConnectivityReceiver {
+             mConnectionType = connectionType;
+             mCellularGeneration = cellularGeneration;
+             mIsInternetReachable = isInternetReachable;
+-            if (hasListener) {
+-                sendConnectivityChangedEvent();
+-            }
++
++            sendConnectivityChangedEvent();
+         }
+     }
+ 
