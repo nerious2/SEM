@@ -205,13 +205,13 @@ function AppListItem({item, index}) {
                 setActionButtonText(latestActionButtonText);
 
                 console.log('====== timeout :');
-            }, 15000);
+            }, 30000);
         
             const ret = RNFS.downloadFile({
                 fromUrl: url,
                 toFile: downloadfilePath,
-                connectionTimeout: 15000,
-                readTimeout: 15000,
+                connectionTimeout: 30000,
+                readTimeout: 30000,
                 progressInterval: 500,
                 // progressDivider: 10,
                 begin: (res) => {
