@@ -24,7 +24,7 @@ import {
 import RNFS from 'react-native-fs';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import BottomToolbar from './BottomToolbar';
-
+import FastImage from 'react-native-fast-image';
 
 /* Peer List Context */
 const appDetailContext = createContext();
@@ -149,12 +149,13 @@ export default function AppDetailModal () {
                     <View style={styles.modalHeader} >
                         <View style={styles.modalHeaderInner}>
                             {/* Icon */}
-                            <Image
+                            {/* <Image
                             source={{uri : appDetailContextState.iconPath}}
                             style={{width: 40, height: 40}}
                             resizeMethod='scale'
                             resizeMode='cover'
-                            />
+                            /> */}
+                            <FastImage style={{width: 40, height: 40}} resizeMode={FastImage.resizeMode.cover} source={{uri: appDetailContextState.iconPath}} />
                             {/* Text */}
                             <View style={{flex: 1, marginLeft: 10,}}>
                             <Text numberOfLines={1} style={{fontWeight: 'bold', fontSize: 15}}>{appDetailContextState.label}</Text>

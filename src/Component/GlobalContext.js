@@ -15,6 +15,8 @@ const initialGlobalAppState = {
     installingPackage: {
         package: '',
         version: '',
+        setActionButtonText: null,
+        latestActionButtonText: '',
     },
     latestInstalledPackage: {
         package: '',

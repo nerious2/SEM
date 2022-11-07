@@ -47,7 +47,7 @@ import AlertAsync from "react-native-alert-async";
 import ProgressBar from "react-native-animated-progress";
 import RNApkInstallerN from 'react-native-apk-installer-n';
 
-import Toolbar from './Component/Toolbar';
+
 import BottomToolbar from './Component/BottomToolbar';
 import AppDetailModal from './Component/AppDetailModal';
 
@@ -284,9 +284,7 @@ const App: () => Node = () => {
     
         installedApps.sort(ascendInstalledApp);
     
-    
-        // console.log('installedApps : ', JSON.stringify(installedApps));
-        // console.log('uninstalledApps : ', JSON.stringify(uninstalledApps));
+
         console.log('installedApps : ', installedApps.length);
         console.log('uninstalledApps : ', uninstalledApps.length);
     
@@ -309,6 +307,10 @@ const App: () => Node = () => {
         } else {
           console.log('app install failed.');
           ToastAndroid.show(`앱이 설치되지 않았습니다.`, ToastAndroid.LONG);
+          console.log(checkApp.latestActionButtonText);
+          // Action Button text를 이전 내용으로 되돌리기
+          checkApp.setActionButtonText(checkApp.latestActionButtonText);
+          
         }
 
         // 인스톨 패키지 초기화
@@ -317,6 +319,8 @@ const App: () => Node = () => {
           payload: {
             package: '',
             version: '',
+            setActionButtonText: null,
+            latestActionButtonText: '',
           }
         });
         
@@ -616,9 +620,6 @@ const App: () => Node = () => {
 
     installedApps.sort(ascendInstalledApp);
 
-
-    // console.log('installedApps : ', JSON.stringify(installedApps));
-    // console.log('uninstalledApps : ', JSON.stringify(uninstalledApps));
     console.log('installedApps : ', installedApps.length);
     console.log('uninstalledApps : ', uninstalledApps.length);
 
@@ -662,7 +663,7 @@ const App: () => Node = () => {
 
 
         // download update.json
-        const url = 'https://repo.senia.kr/sem/update.json';
+        const url = 'http://repo.senia.kr/sem/update.json';
         const downloadfilePath = `file://${RNFS.CachesDirectoryPath}/update.json`;
 
         // update.json이 이미 있는 경우 삭제
@@ -829,106 +830,156 @@ const App: () => Node = () => {
             // AsyncStorage에 앱 리스트 저장
             await AsyncStorage.setItem('@APP_LIST', JSON.stringify(appList));
 
+            // 관리할 앱 리스트를 ref에 저장
             managedAppList.current = updateData;
+
+
+            // 2022.11.07 promise.all 로 변경 (검증 필요)
+            const appTaskPromise = [];
+            // let appTaskIndex = 0;
+            setRefreshText(`앱 정보 가져오는 중 [${appListLength}]`);
 
             for (const [index, value] of appList.entries()) {
 
               // 헤더 표시 변경
-              setRefreshText(`앱 정보 가져오는 중 (${index+1} / ${appListLength})`);
-              // setRefreshProgressBar((index+1) / appListLength * 100);
-              console.log(`${index} : ${value.package}`);
-              const iconPath = `file://${RNFS.DocumentDirectoryPath}/${value.package}/ic_launcher.png`;
-              const iconExist = await RNFS.exists(iconPath);
-              console.log('icon path : ', iconPath);
-              console.log('file exists : ', iconExist);
-              if (!iconExist) {
+              // setRefreshText(`앱 정보 가져오는 중 (${index+1} / ${appListLength})`);
+
+              // 2022.11.07 promise.all 로 변경
+              const promise = new Promise(async function(resolve, reject) {
+
+                // setRefreshProgressBar((index+1) / appListLength * 100);
+                console.log(`${index} : ${value.package}`);
+                const iconPath = `file://${RNFS.DocumentDirectoryPath}/${value.package}/ic_launcher.png`;
+                const iconExist = await RNFS.exists(iconPath);
+                console.log('icon path : ', iconPath);
+                console.log('file exists : ', iconExist);
+                if (!iconExist) {
+                  try {
+
+                    await RNFS.mkdir(`file://${RNFS.DocumentDirectoryPath}/${value.package}/`);
+                    console.log ('download icon :: ', value.icon_url);
+
+                    const icon_ret = RNFS.downloadFile({
+                      fromUrl: value.icon_url,
+                      toFile: iconPath,
+                      connectionTimeout: 30000,
+                      readTimeout: 30000,
+                    });
+
+                    console.log('icon ready ', index);
+
+                    const result = await icon_ret.promise;
+                    console.log('icon end ', index);
+                    console.log('icon result == ', result);
+
+
+                  } catch (e) {
+                    console.log ('for of error : ', e);
+                    reject(e);
+                  }
+                }
+
+                // update history 처리
+                const updateHistoryPath = `file://${RNFS.CachesDirectoryPath}/${value.package}/update_history.json`;
                 try {
+                  const updateHistoryExist = await RNFS.exists(updateHistoryPath);
+                  console.log('update History exists : ', updateHistoryExist);
+                  if (updateHistoryExist) {
+                    console.log('unlink update History');
+                    await RNFS.unlink(updateHistoryPath);
+                    console.log('unlink update History OK');
+                  } else {
+                    // cache디렉토리에 경로 생성
+                    const mkdirUrl = `file://${RNFS.CachesDirectoryPath}/${value.package}/`;
+                    console.log('make directory ::: ', mkdirUrl);
+                    await RNFS.mkdir(mkdirUrl);
+                  }
 
-                  await RNFS.mkdir(`file://${RNFS.DocumentDirectoryPath}/${value.package}/`);
-                  console.log ('download icon :: ', value.icon_url);
 
-                  const icon_ret = RNFS.downloadFile({
-                    fromUrl: value.icon_url,
-                    toFile: iconPath,
-                  });
+                  // AsyncStorage에 이미 저장되어있는지 확인
 
-                  console.log('icon ready ', index);
+                  let needUpdateHistory = true;
+                  const savedUpdateHistory = await AsyncStorage.getItem(value.package);
 
-                  const result = await icon_ret.promise;
-                  console.log('icon end ', index);
-                  console.log(' result == ', result);
+                  if (savedUpdateHistory != null) {
+                    const latestUpdateHistory = JSON.parse(savedUpdateHistory);
+                    
+                    const result = latestUpdateHistory.update_log.filter((item) => item?.version === value.version);
+                    console.log('ddddddddddd  result length :: ', result.length)
+                    if (result.length > 0) {
+                      console.log('ddddddddddd  :: needUpdate false');
+                      needUpdateHistory = false;
+                    }
+                  }
+
+                  if (needUpdateHistory) {
+                    // 서버에서 update_history.json 다운로드
+                    console.log('download :: ', value.update_history);
+                    const updateHistory_ret = RNFS.downloadFile({
+                      fromUrl: value.update_history,
+                      toFile: updateHistoryPath,
+                      connectionTimeout: 30000,
+                      readTimeout: 30000,
+                    });
+      
+                    console.log('update history ready ', index);
+      
+                    const result2 = await updateHistory_ret.promise;
+                    console.log('update_history end ', index);
+                    console.log('update_history result == ', result2);
+
+                              
+                    if(result2.statusCode == 200) {
+                      // setRefreshProgressBar(100);
+                      console.log("result2 for saving file===", result2);
+
+                      const updateHistoryStr = await RNFS.readFile(updateHistoryPath, 'utf8');
+        
+                      const updateHistoryData = JSON.parse(updateHistoryStr);
+        
+                      appList[index].update_history_contents = updateHistoryData;
+                      console.log('[react-native-fs] get update history');
+
+                      // AsyncStorage에 데이터 저장
+                      await AsyncStorage.setItem(value.package, JSON.stringify(updateHistoryData));
+                      // console.log('final update history :: ', JSON.stringify(appList[index].update_history_contents));
+
+                      console.log('unlink update History');
+                      await RNFS.unlink(updateHistoryPath);
+
+                    }
+
+                    const updateHistoryExist2 = await RNFS.exists(updateHistoryPath);
+                    console.log('update History exists : ', updateHistoryExist2);
+                    if (updateHistoryExist2) {
+                      console.log('unlink update History');
+                      await RNFS.unlink(updateHistoryPath);
+                      console.log('unlink update History OK');
+                    }
+
+                  } else {
+                    // AsyncStorage에서 가져온 데이터를 사용
+                    const latestUpdateHistory = JSON.parse(savedUpdateHistory);
+                    appList[index].update_history_contents = latestUpdateHistory;
+                    console.log('[asyncstorage] use update history');
+                  }
+
+                  // 22.11.07
+                  // appTaskIndex++;
+                  // setRefreshText(`앱 정보 가져오는 중 (${appTaskIndex} / ${appListLength})`);
+                  resolve(true);
 
 
                 } catch (e) {
                   console.log ('for of error : ', e);
+                  reject(e);
                 }
-
-
-              }
-
-              // update history 처리
-              const updateHistoryPath = `file://${RNFS.CachesDirectoryPath}/update_history.json`;
-              try {
-                const updateHistoryExist = await RNFS.exists(updateHistoryPath);
-                console.log('update History exists : ', updateHistoryExist);
-                if (updateHistoryExist) {
-                  console.log('unlink update History');
-                  await RNFS.unlink(updateHistoryPath);
-                  console.log('unlink update History OK');
-                }
-
-
-                // AsyncStorage에 이미 저장되어있는지 확인
-
-                let needUpdateHistory = true;
-                const savedUpdateHistory = await AsyncStorage.getItem(value.package);
-
-                if (savedUpdateHistory != null) {
-                  const latestUpdateHistory = JSON.parse(savedUpdateHistory);
-                  
-                  const result = latestUpdateHistory.update_log.filter((item) => item?.version === value.version);
-                  console.log('ddddddddddd  result length :: ', result.length)
-                  if (result.length > 0) {
-                    console.log('ddddddddddd  :: needUpdate false');
-                    needUpdateHistory = false;
-                  }
-                }
-
-                if (needUpdateHistory) {
-                  // 서버에서 update_history.json 다운로드
-                  const updateHistory_ret = RNFS.downloadFile({
-                    fromUrl: value.update_history,
-                    toFile: updateHistoryPath,
-                  });
-    
-                  console.log('update history ready ', index);
-    
-                  const result2 = await updateHistory_ret.promise;
-                  console.log('update history end ', index);
-                  console.log(' result == ', result2);
-    
-                  const updateHistoryData = JSON.parse(await RNFS.readFile(updateHistoryPath, 'utf8'));
-    
-                  appList[index].update_history_contents = updateHistoryData;
-                  console.log('[react-native-fs] get update history');
-
-                  // AsyncStorage에 데이터 저장
-                  await AsyncStorage.setItem(value.package, JSON.stringify(updateHistoryData));
-                  // console.log('final update history :: ', JSON.stringify(appList[index].update_history_contents));
-
-                } else {
-                  // AsyncStorage에서 가져온 데이터를 사용
-                  const latestUpdateHistory = JSON.parse(savedUpdateHistory);
-                  appList[index].update_history_contents = latestUpdateHistory;
-                  console.log('[asyncstorage] use update history');
-                }
-
-
-              } catch (e) {
-                console.log ('for of error : ', e);
-              }
+              });
+              // 22.11.07
+              appTaskPromise.push(promise);
             }
 
+            await Promise.all(appTaskPromise);
             
             // setRefreshProgressBar(100);
             readAppList(appList);

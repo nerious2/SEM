@@ -270,6 +270,8 @@ function AppListItem({item, index}) {
                         payload: {
                             package: appPackage,
                             version: newVersion,
+                            setActionButtonText: setActionButtonText,
+                            latestActionButtonText: latestActionButtonText,
                         }
                     });
 
@@ -364,10 +366,11 @@ function AppListItem({item, index}) {
             <View style={{flexDirection: 'row', flex: 1,}}>
                 <View style={styles.icon}>
                 {/* const iconPath = `file://${RNFS.DocumentDirectoryPath}/${value.package}/ic_launcher.png`; */}
-                    <Image
+                    {/* <Image
                         source ={{uri : iconPath}}
                         style={{width: 60, height: 60}}
-                    />
+                    /> */}
+                    <FastImage style={{width: 60, height: 60}} resizeMode={FastImage.resizeMode.cover} source={{uri: iconPath}} />
                 </View>
                 <View style={{justifyContent: 'space-between', flex: 1, marginTop: 10, marginBottom: 11, marginRight: 10,}}>
                     <View>
