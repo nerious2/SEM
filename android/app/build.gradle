@@ -143,8 +143,8 @@ android {
         applicationId "com.se.ebookmanager"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 3
-        versionName "0.9.03"
+        versionCode 4
+        versionName "0.9.04"
     }
     splits {
         abi {

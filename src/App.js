@@ -120,7 +120,7 @@ const App: () => Node = () => {
     async function checkTempFile() {
       try {
         // update apk 파일이 이미 있는 경우 삭제
-        const downloadfilePath = `${RNFS.DownloadDirectoryPath}/@sem_temp.apk`;
+        const downloadfilePath = `${RNFS.ExternalCachesDirectoryPath}/@sem_temp.apk`;
         
         const updateApkExist = await RNFS.exists(downloadfilePath);
         console.log('update temp APK exists : ', updateApkExist);
@@ -159,20 +159,20 @@ const App: () => Node = () => {
   }, [globalContextState.installingPackage]);
 
 
+  const backAction = () => {
+    Alert.alert("종료", "모두의이북을 종료하시겠습니까?", [
+      {
+        text: "취소",
+        onPress: () => null,
+        style: "cancel"
+      },
+      { text: "확인", onPress: () => BackHandler.exitApp() }
+    ]);
+    return true;
+  };
+
   // back key press event
   useEffect(() => {
-    const backAction = () => {
-      Alert.alert("종료", "모두의이북을 종료하시겠습니까?", [
-        {
-          text: "취소",
-          onPress: () => null,
-          style: "cancel"
-        },
-        { text: "확인", onPress: () => BackHandler.exitApp() }
-      ]);
-      return true;
-    };
-
     const backHandler = BackHandler.addEventListener(
       "hardwareBackPress",
       backAction
@@ -201,7 +201,7 @@ const App: () => Node = () => {
 
         try {
           // update apk 파일이 이미 있는 경우 삭제
-          const downloadfilePath = `${RNFS.DownloadDirectoryPath}/@sem_temp.apk`;
+          const downloadfilePath = `${RNFS.ExternalCachesDirectoryPath}/@sem_temp.apk`;
 
           const updateApkExist = await RNFS.exists(downloadfilePath);
           console.log('update temp APK exists : ', updateApkExist);
@@ -337,7 +337,7 @@ const App: () => Node = () => {
 
   useEffect(() => {
     console.log('============ Dimensions : ', Dimensions.get("window"));
-    requestPermission();
+    
     AppState.addEventListener('change', handleAppStateChange);
     return () => {
       AppState.removeEventListener('change', handleAppStateChange);
@@ -375,41 +375,6 @@ const App: () => Node = () => {
   const [appDetailModal, setAppDetailModal] = useState(true);
 
 
-  /* 안드로이드 권한 */
-
-  const requestPermission = async () => {
-    try {
-      if (Platform.OS === "android") {
-        await PermissionsAndroid.requestMultiple([
-            PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
-            PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE
-        ]).then( async(result)=>{
-            if (result['android.permission.WRITE_EXTERNAL_STORAGE'] === 'granted'
-            && result['android.permission.READ_EXTERNAL_STORAGE'] === 'granted') {
-                console.log("모든 권한 획득");
-                // await checkNoMedia();
-                //ToastAndroid.show('환영합니다', ToastAndroid.SHORT);
-            } else{
-              console.log("권한거절");
-              Alert.alert(
-                '권한 설정',
-                `앱을 사용하기 위해서 권한 설정이 필요합니다.`,
-                [
-                  {text: '확인', onPress: () => {
-                    requestPermission();          
-                  }},
-                ],
-                {cancelable: false},
-              );
-            }
-        })
-      
-      }
-    } catch (err) {
-      console.warn(err);
-    }
-  };
-
   // 앱 업데이트를 수행한다
   const updateApp = async (url, forceUpdate=false) => {
     // 다른 다운로드 작업 진행중 or 새로고침 중일 경우 예외처리
@@ -432,7 +397,7 @@ const App: () => Node = () => {
     setIsHeaderEnable(true);
     setRefreshText('앱 업데이트 진행 중');
 
-    const downloadfilePath = `${RNFS.DownloadDirectoryPath}/@sem_temp.apk`;
+    const downloadfilePath = `${RNFS.ExternalCachesDirectoryPath}/@sem_temp.apk`;
     console.log('url : ', url);
     console.log('DOWOLOAD ', downloadfilePath);
     let jobId = -1;
@@ -551,8 +516,53 @@ const App: () => Node = () => {
       }, 3000);
     }
 
-
   }
+
+  // 리스트 하단의 새로고침 버튼
+  const RefreshButton = () => {
+    return (
+      <Pressable
+        style={({ pressed }) => [
+          {
+              backgroundColor: pressed
+              ? '#a0a0a0'
+              : 'white'
+          },
+          styles.refreshButton
+        ]}
+        onPress={() => {
+          // 앱 새로고침
+          if (isAppRefresh) {
+            ToastAndroid.show('이미 새로고침이 진행 중입니다.', ToastAndroid.SHORT);
+            return;
+          }
+          
+          if (!isInternetReachable) {
+            ToastAndroid.show('인터넷 연결 상태를 확인해주세요.', ToastAndroid.SHORT);
+            return;
+          }
+
+          if (globalContextState.nowDownloadJobId != -1) {
+            ToastAndroid.show('앱의 다운로드가 끝나고 시도하세요.', ToastAndroid.SHORT);
+            return;
+          }
+
+          setIsAppRefresh(true);
+        }}
+
+        // 길게 눌러 앱 종료
+        delayLongPress={700}
+        onLongPress={() => {
+          backAction();
+        }}
+      >
+        <Text style={{color: '#000000', fontWeight: 'bold', fontSize: 16}}>새로고침</Text>
+        <Text style={{color: '#000000', fontSize: 10}}>길게 눌러 앱 종료</Text>
+      </Pressable>
+    );
+  }
+
+
 
   // 기기에 설치된 앱 리스트를 가져온다
   const readAppList = async (appList) => {
@@ -642,56 +652,353 @@ const App: () => Node = () => {
   const [uninstalledAppList, setUninstalledAppList] = useState([]);
   const [installedAppList, setInstalledAppList] = useState([]);
 
-  useEffect(() => {
+  async function appRefresh () {      
+    if (!isAppRefresh) return;
 
-    async function appRefresh () {      
-      if (!isAppRefresh) return;
+    console.log('====APP REFRESH!!!!');
 
-      console.log('====APP REFRESH!!!!');
-
-      globalContextDispatch({
-        type: 'SET_REFRESH_STATE',
-        payload: true
-      });
+    globalContextDispatch({
+      type: 'SET_REFRESH_STATE',
+      payload: true
+    });
 
 
-      try {
-        setRefreshText('새로고침 진행 중');
-        
+    try {
+      setRefreshText('새로고침 진행 중');
+      
 
-        let jobId = -1;
+      let jobId = -1;
 
 
-        // download update.json
-        const url = 'http://repo.senia.kr/sem/update.json';
-        const downloadfilePath = `file://${RNFS.CachesDirectoryPath}/update.json`;
+      // download update.json
+      const url = 'http://repo.senia.kr/sem/update.json';
+      const downloadfilePath = `file://${RNFS.CachesDirectoryPath}/update.json`;
 
-        // update.json이 이미 있는 경우 삭제
-        const updateJsonExist = await RNFS.exists(downloadfilePath);
-        console.log('update JSON exists : ', updateJsonExist);
-        if (updateJsonExist) {
-          console.log('unlink update JSON');
-          await RNFS.unlink(downloadfilePath);
-          console.log('unlink update JSON OK');
+      // update.json이 이미 있는 경우 삭제
+      const updateJsonExist = await RNFS.exists(downloadfilePath);
+      console.log('update JSON exists : ', updateJsonExist);
+      if (updateJsonExist) {
+        console.log('unlink update JSON');
+        await RNFS.unlink(downloadfilePath);
+        console.log('unlink update JSON OK');
+      }
+
+      // 자체 타임아웃 구현
+      const downloadTimeout = setTimeout(() => {
+        console.log('jobid :: ', jobId);
+        if (jobId != -1) {
+          RNFS.stopDownload(jobId);
+          console.log('stopDownload ', jobId);
+
+          globalContextDispatch({
+              type: 'SET_NOW_DOWNLOAD_JOBID',
+              payload: -1
+          });
         }
 
-        // 자체 타임아웃 구현
-        const downloadTimeout = setTimeout(() => {
-          console.log('jobid :: ', jobId);
-          if (jobId != -1) {
-            RNFS.stopDownload(jobId);
-            console.log('stopDownload ', jobId);
+        setNowDownloadJobId(-1);
 
-            globalContextDispatch({
-                type: 'SET_NOW_DOWNLOAD_JOBID',
-                payload: -1
+        ToastAndroid.show('서버에 연결하는데 실패했습니다.', ToastAndroid.SHORT);
+        setRefreshText('새로고침 실패, 네트워크 환경을 확인하세요.');
+
+        globalContextDispatch({
+          type: 'SET_REFRESH_STATE',
+          payload: false
+        });
+
+        // 3초 뒤에 해더 제거
+        setTimeout(() => {
+          setIsAppRefresh(false);
+        }, 3000);
+
+        console.log('====== timeout :');
+      }, 30000);
+      
+
+      const ret = RNFS.downloadFile({
+        fromUrl: url,
+        toFile: downloadfilePath,
+        connectionTimeout: 30000,
+        readTimeout: 30000,
+        progressInterval: 500,
+        // progressDivider: 10,
+        begin: (res) => {
+          clearTimeout(downloadTimeout);
+          console.log("Response begin ===\n\n");
+          console.log(res);
+          if (res.statusCode == 200) {
+            setNowDownloadJobId(res.jobId);
+          } else {
+            ToastAndroid.show('새로고침에 실패했습니다. 잠시 후 다시 시도하세요.', ToastAndroid.SHORT);
+          }
+          
+        },
+        progress: (res) => {
+        //here you can calculate your progress for file download
+
+          console.log("Response written ===\n\n");
+          let progressPercent = (res.bytesWritten / res.contentLength) * 100; // to calculate in percentage
+          console.log("\n\nprogress===", progressPercent)
+          // setRefreshProgressBar(progressPercent);
+          // this.setState({ progress: progressPercent.toString() });
+          // item.downloadProgress = progressPercent;
+          console.log(res);
+        }
+      });
+
+      globalContextDispatch({
+        type: 'SET_NOW_DOWNLOAD_JOBID',
+        payload: ret.jobId
+      });
+
+      jobId = ret.jobId;
+
+      ret.promise.then(async(res) => {
+
+        globalContextDispatch({
+          type: 'SET_NOW_DOWNLOAD_JOBID',
+          payload: -1
+        });
+
+        setNowDownloadJobId(-1);
+
+
+        if(res.statusCode == 200) {
+          // setRefreshProgressBar(100);
+          console.log("res for saving file===", res);
+          // const resultData = await RNFS.readFile(downloadfilePath, 'utf8');
+          // console.log('resultData ::: ', resultData);
+          const updateData = JSON.parse(await RNFS.readFile(downloadfilePath, 'utf8'));
+          
+          // console.log('update Data ::: ', JSON.stringify(updateData));
+
+          // 앱 업데이트 유무 확인
+          if (updateData.update_version !== VersionCheck.getCurrentVersion()) {
+            console.log('need update');
+
+            // 필수 업데이트가 아니고, 업데이트 알림을 이전에 끈 경우 알림 메시지 스킵savedAppSetting
+            if (updateData.update_type === 'emergency' || savedAppSetting.current.updateAlertEnable) {
+
+              const emergencyTitle = '중요 업데이트';
+              const emergencyContents = '모두의이북 앱의 새로운 버전이 출시되었습니다. 업데이트를 하지 않을 시 앱을 사용하실 수 없습니다.';
+              const emergencySelect = [
+                {text: '종료', onPress: () => 'exit'},
+                {text: '업데이트', onPress: () => 'yes'},
+              ];
+
+              const normalTitle = '업데이트';
+              const normalContents = '모두의이북 앱의 새로운 버전이 출시되었습니다.';
+              const normalSelect = [
+                {text: '알림끄기', onPress: () => 'disable'},
+                {text: '취소', onPress: () => 'no'},
+                {text: '업데이트', onPress: () => 'yes'},
+              ];
+
+              setRefreshText(`${updateData.update_type === 'emergency' ? emergencyTitle : normalTitle} 발견`);
+
+              const choice = await AlertAsync(
+                updateData.update_type === 'emergency' ? emergencyTitle : normalTitle,
+                `${updateData.update_type === 'emergency' ? emergencyContents : normalContents}\n\n${updateData.update_history}`,
+                updateData.update_type === 'emergency' ? emergencySelect : normalSelect,
+                {
+                  cancelable: updateData.update_type === 'emergency' ? false : true,
+                  onDismiss: () => 'no',
+                },
+              );
+
+              console.log('choice :::: ', choice);
+
+              if (choice === 'yes') {
+                // 업데이트 수행
+                await updateApp(updateData.update_url, true);
+
+
+              } else if (choice === 'disable') {
+                // 알림 표시 안함 AsyncStorage 저장
+                savedAppSetting.current.updateAlertEnable = false;
+                await AsyncStorage.setItem('@SEM_SETTING', JSON.stringify(savedAppSetting.current));
+                console.log('saved setting ===> AsyncStorage');
+
+              } else if (choice === 'exit') {
+                // 앱 종료
+                BackHandler.exitApp();
+              }
+
+
+            } else {
+              console.log('update alert skip');
+            }
+
+            isAppUpdateAvailable.current = true;
+            appUpdateUrl.current = updateData.update_url;
+            setAppUpdateHistory(updateData.update_history);
+
+          }
+          
+
+          // 아이콘 유무 체크, 없을 경우 새로 다운로드
+          const appList = updateData.app;
+          const appListLength = appList.length;
+
+
+          // AsyncStorage에 앱 리스트 저장
+          await AsyncStorage.setItem('@APP_LIST', JSON.stringify(appList));
+
+          // 관리할 앱 리스트를 ref에 저장
+          managedAppList.current = updateData;
+
+
+          // 2022.11.07 promise.all 로 변경 (검증 필요)
+          const appTaskPromise = [];
+          // let appTaskIndex = 0;
+          setRefreshText(`앱 정보 가져오는 중 [${appListLength}]`);
+
+          for (const [index, value] of appList.entries()) {
+
+            // 헤더 표시 변경
+            // setRefreshText(`앱 정보 가져오는 중 (${index+1} / ${appListLength})`);
+
+            // 2022.11.07 promise.all 로 변경
+            const promise = new Promise(async function(resolve, reject) {
+
+              // setRefreshProgressBar((index+1) / appListLength * 100);
+              console.log(`${index} : ${value.package}`);
+              const iconPath = `file://${RNFS.DocumentDirectoryPath}/${value.package}/ic_launcher.png`;
+              const iconExist = await RNFS.exists(iconPath);
+              console.log('icon path : ', iconPath);
+              console.log('file exists : ', iconExist);
+              if (!iconExist) {
+                try {
+
+                  await RNFS.mkdir(`file://${RNFS.DocumentDirectoryPath}/${value.package}/`);
+                  console.log ('download icon :: ', value.icon_url);
+
+                  const icon_ret = RNFS.downloadFile({
+                    fromUrl: value.icon_url,
+                    toFile: iconPath,
+                    connectionTimeout: 30000,
+                    readTimeout: 30000,
+                  });
+
+                  console.log('icon ready ', index);
+
+                  const result = await icon_ret.promise;
+                  console.log('icon end ', index);
+                  console.log('icon result == ', result);
+
+
+                } catch (e) {
+                  console.log ('for of error : ', e);
+                  reject(e);
+                }
+              }
+
+              // update history 처리
+              const updateHistoryPath = `file://${RNFS.CachesDirectoryPath}/${value.package}/update_history.json`;
+              try {
+                const updateHistoryExist = await RNFS.exists(updateHistoryPath);
+                console.log('update History exists : ', updateHistoryExist);
+                if (updateHistoryExist) {
+                  console.log('unlink update History');
+                  await RNFS.unlink(updateHistoryPath);
+                  console.log('unlink update History OK');
+                } else {
+                  // cache디렉토리에 경로 생성
+                  const mkdirUrl = `file://${RNFS.CachesDirectoryPath}/${value.package}/`;
+                  console.log('make directory ::: ', mkdirUrl);
+                  await RNFS.mkdir(mkdirUrl);
+                }
+
+
+                // AsyncStorage에 이미 저장되어있는지 확인
+
+                let needUpdateHistory = true;
+                const savedUpdateHistory = await AsyncStorage.getItem(value.package);
+
+                if (savedUpdateHistory != null) {
+                  const latestUpdateHistory = JSON.parse(savedUpdateHistory);
+                  
+                  const result = latestUpdateHistory.update_log.filter((item) => item?.version === value.version);
+                  console.log('ddddddddddd  result length :: ', result.length)
+                  if (result.length > 0) {
+                    console.log('ddddddddddd  :: needUpdate false');
+                    needUpdateHistory = false;
+                  }
+                }
+
+                if (needUpdateHistory) {
+                  // 서버에서 update_history.json 다운로드
+                  console.log('download :: ', value.update_history);
+                  const updateHistory_ret = RNFS.downloadFile({
+                    fromUrl: value.update_history,
+                    toFile: updateHistoryPath,
+                    connectionTimeout: 30000,
+                    readTimeout: 30000,
+                  });
+    
+                  console.log('update history ready ', index);
+    
+                  const result2 = await updateHistory_ret.promise;
+                  console.log('update_history end ', index);
+                  console.log('update_history result == ', result2);
+
+                            
+                  if(result2.statusCode == 200) {
+                    // setRefreshProgressBar(100);
+                    console.log("result2 for saving file===", result2);
+
+                    const updateHistoryStr = await RNFS.readFile(updateHistoryPath, 'utf8');
+      
+                    const updateHistoryData = JSON.parse(updateHistoryStr);
+      
+                    appList[index].update_history_contents = updateHistoryData;
+                    console.log('[react-native-fs] get update history');
+
+                    // AsyncStorage에 데이터 저장
+                    await AsyncStorage.setItem(value.package, JSON.stringify(updateHistoryData));
+                    // console.log('final update history :: ', JSON.stringify(appList[index].update_history_contents));
+
+                    console.log('unlink update History');
+                    await RNFS.unlink(updateHistoryPath);
+
+                  }
+
+                  const updateHistoryExist2 = await RNFS.exists(updateHistoryPath);
+                  console.log('update History exists : ', updateHistoryExist2);
+                  if (updateHistoryExist2) {
+                    console.log('unlink update History');
+                    await RNFS.unlink(updateHistoryPath);
+                    console.log('unlink update History OK');
+                  }
+
+                } else {
+                  // AsyncStorage에서 가져온 데이터를 사용
+                  const latestUpdateHistory = JSON.parse(savedUpdateHistory);
+                  appList[index].update_history_contents = latestUpdateHistory;
+                  console.log('[asyncstorage] use update history');
+                }
+
+                // 22.11.07
+                // appTaskIndex++;
+                // setRefreshText(`앱 정보 가져오는 중 (${appTaskIndex} / ${appListLength})`);
+                resolve(true);
+
+
+              } catch (e) {
+                console.log ('for of error : ', e);
+                reject(e);
+              }
             });
+            // 22.11.07
+            appTaskPromise.push(promise);
           }
 
-          setNowDownloadJobId(-1);
-
-          ToastAndroid.show('서버에 연결하는데 실패했습니다.', ToastAndroid.SHORT);
-          setRefreshText('새로고침 실패, 네트워크 환경을 확인하세요.');
+          await Promise.all(appTaskPromise);
+          
+          // setRefreshProgressBar(100);
+          readAppList(appList);
+          // setUninstalledAppList(appList);
+          setRefreshText('새로고침 성공');
 
           globalContextDispatch({
             type: 'SET_REFRESH_STATE',
@@ -702,321 +1009,26 @@ const App: () => Node = () => {
           setTimeout(() => {
             setIsAppRefresh(false);
           }, 3000);
+        }
 
-          console.log('====== timeout :');
-        }, 30000);
-        
+      }).catch (e => {
+        console.log("ERROR you ::: ", e);
+      });
+    } catch (e) {
+      console.log('error : ', e);
+      globalContextDispatch({
+        type: 'SET_REFRESH_STATE',
+        payload: false
+      });
 
-        const ret = RNFS.downloadFile({
-          fromUrl: url,
-          toFile: downloadfilePath,
-          connectionTimeout: 30000,
-          readTimeout: 30000,
-          progressInterval: 500,
-          // progressDivider: 10,
-          begin: (res) => {
-            clearTimeout(downloadTimeout);
-            console.log("Response begin ===\n\n");
-            console.log(res);
-            if (res.statusCode == 200) {
-              setNowDownloadJobId(res.jobId);
-            } else {
-              ToastAndroid.show('새로고침에 실패했습니다. 잠시 후 다시 시도하세요.', ToastAndroid.SHORT);
-            }
-            
-          },
-          progress: (res) => {
-          //here you can calculate your progress for file download
-
-            console.log("Response written ===\n\n");
-            let progressPercent = (res.bytesWritten / res.contentLength) * 100; // to calculate in percentage
-            console.log("\n\nprogress===", progressPercent)
-            // setRefreshProgressBar(progressPercent);
-            // this.setState({ progress: progressPercent.toString() });
-            // item.downloadProgress = progressPercent;
-            console.log(res);
-          }
-        });
-
-        globalContextDispatch({
-          type: 'SET_NOW_DOWNLOAD_JOBID',
-          payload: ret.jobId
-        });
-
-        jobId = ret.jobId;
-
-        ret.promise.then(async(res) => {
-
-          globalContextDispatch({
-            type: 'SET_NOW_DOWNLOAD_JOBID',
-            payload: -1
-          });
-
-          setNowDownloadJobId(-1);
-
-
-          if(res.statusCode == 200) {
-            // setRefreshProgressBar(100);
-            console.log("res for saving file===", res);
-            const updateData = JSON.parse(await RNFS.readFile(downloadfilePath, 'utf8'));
-            
-            // console.log('update Data ::: ', JSON.stringify(updateData));
-
-            // 앱 업데이트 유무 확인
-            if (updateData.update_version !== VersionCheck.getCurrentVersion()) {
-              console.log('need update');
-
-              // 필수 업데이트가 아니고, 업데이트 알림을 이전에 끈 경우 알림 메시지 스킵savedAppSetting
-              if (updateData.update_type === 'emergency' || savedAppSetting.current.updateAlertEnable) {
-
-                const emergencyTitle = '중요 업데이트';
-                const emergencyContents = '모두의이북 앱의 새로운 버전이 출시되었습니다. 업데이트를 하지 않을 시 앱을 사용하실 수 없습니다.';
-                const emergencySelect = [
-                  {text: '업데이트', onPress: () => 'yes'},
-                ];
-  
-                const normalTitle = '업데이트';
-                const normalContents = '모두의이북 앱의 새로운 버전이 출시되었습니다.';
-                const normalSelect = [
-                  {text: '알림끄기', onPress: () => 'disable'},
-                  {text: '취소', onPress: () => 'no'},
-                  {text: '업데이트', onPress: () => 'yes'},
-                ];
-  
-                setRefreshText(`${updateData.update_type === 'emergency' ? emergencyTitle : normalTitle} 발견`);
-  
-                const choice = await AlertAsync(
-                  updateData.update_type === 'emergency' ? emergencyTitle : normalTitle,
-                  `${updateData.update_type === 'emergency' ? emergencyContents : normalContents}\n\n${updateData.update_history}`,
-                  updateData.update_type === 'emergency' ? emergencySelect : normalSelect,
-                  {
-                    cancelable: updateData.update_type === 'emergency' ? false : true,
-                    onDismiss: () => 'no',
-                  },
-                );
-  
-                console.log('choice :::: ', choice);
-
-                if (choice === 'yes') {
-                  // 업데이트 수행
-                  await updateApp(updateData.update_url, true);
-
-                  
-
-                } else if (choice === 'disable') {
-                  // 알림 표시 안함 AsyncStorage 저장
-                  savedAppSetting.current.updateAlertEnable = false;
-                  await AsyncStorage.setItem('@SEM_SETTING', JSON.stringify(savedAppSetting.current));
-                  console.log('saved setting ===> AsyncStorage');
-                }
-
-
-              } else {
-                console.log('update alert skip');
-              }
-
-              isAppUpdateAvailable.current = true;
-              appUpdateUrl.current = updateData.update_url;
-              setAppUpdateHistory(updateData.update_history);
-
-            }
-            
-
-            // 아이콘 유무 체크, 없을 경우 새로 다운로드
-            const appList = updateData.app;
-            const appListLength = appList.length;
-
-
-            // AsyncStorage에 앱 리스트 저장
-            await AsyncStorage.setItem('@APP_LIST', JSON.stringify(appList));
-
-            // 관리할 앱 리스트를 ref에 저장
-            managedAppList.current = updateData;
-
-
-            // 2022.11.07 promise.all 로 변경 (검증 필요)
-            const appTaskPromise = [];
-            // let appTaskIndex = 0;
-            setRefreshText(`앱 정보 가져오는 중 [${appListLength}]`);
-
-            for (const [index, value] of appList.entries()) {
-
-              // 헤더 표시 변경
-              // setRefreshText(`앱 정보 가져오는 중 (${index+1} / ${appListLength})`);
-
-              // 2022.11.07 promise.all 로 변경
-              const promise = new Promise(async function(resolve, reject) {
-
-                // setRefreshProgressBar((index+1) / appListLength * 100);
-                console.log(`${index} : ${value.package}`);
-                const iconPath = `file://${RNFS.DocumentDirectoryPath}/${value.package}/ic_launcher.png`;
-                const iconExist = await RNFS.exists(iconPath);
-                console.log('icon path : ', iconPath);
-                console.log('file exists : ', iconExist);
-                if (!iconExist) {
-                  try {
-
-                    await RNFS.mkdir(`file://${RNFS.DocumentDirectoryPath}/${value.package}/`);
-                    console.log ('download icon :: ', value.icon_url);
-
-                    const icon_ret = RNFS.downloadFile({
-                      fromUrl: value.icon_url,
-                      toFile: iconPath,
-                      connectionTimeout: 30000,
-                      readTimeout: 30000,
-                    });
-
-                    console.log('icon ready ', index);
-
-                    const result = await icon_ret.promise;
-                    console.log('icon end ', index);
-                    console.log('icon result == ', result);
-
-
-                  } catch (e) {
-                    console.log ('for of error : ', e);
-                    reject(e);
-                  }
-                }
-
-                // update history 처리
-                const updateHistoryPath = `file://${RNFS.CachesDirectoryPath}/${value.package}/update_history.json`;
-                try {
-                  const updateHistoryExist = await RNFS.exists(updateHistoryPath);
-                  console.log('update History exists : ', updateHistoryExist);
-                  if (updateHistoryExist) {
-                    console.log('unlink update History');
-                    await RNFS.unlink(updateHistoryPath);
-                    console.log('unlink update History OK');
-                  } else {
-                    // cache디렉토리에 경로 생성
-                    const mkdirUrl = `file://${RNFS.CachesDirectoryPath}/${value.package}/`;
-                    console.log('make directory ::: ', mkdirUrl);
-                    await RNFS.mkdir(mkdirUrl);
-                  }
-
-
-                  // AsyncStorage에 이미 저장되어있는지 확인
-
-                  let needUpdateHistory = true;
-                  const savedUpdateHistory = await AsyncStorage.getItem(value.package);
-
-                  if (savedUpdateHistory != null) {
-                    const latestUpdateHistory = JSON.parse(savedUpdateHistory);
-                    
-                    const result = latestUpdateHistory.update_log.filter((item) => item?.version === value.version);
-                    console.log('ddddddddddd  result length :: ', result.length)
-                    if (result.length > 0) {
-                      console.log('ddddddddddd  :: needUpdate false');
-                      needUpdateHistory = false;
-                    }
-                  }
-
-                  if (needUpdateHistory) {
-                    // 서버에서 update_history.json 다운로드
-                    console.log('download :: ', value.update_history);
-                    const updateHistory_ret = RNFS.downloadFile({
-                      fromUrl: value.update_history,
-                      toFile: updateHistoryPath,
-                      connectionTimeout: 30000,
-                      readTimeout: 30000,
-                    });
-      
-                    console.log('update history ready ', index);
-      
-                    const result2 = await updateHistory_ret.promise;
-                    console.log('update_history end ', index);
-                    console.log('update_history result == ', result2);
-
-                              
-                    if(result2.statusCode == 200) {
-                      // setRefreshProgressBar(100);
-                      console.log("result2 for saving file===", result2);
-
-                      const updateHistoryStr = await RNFS.readFile(updateHistoryPath, 'utf8');
-        
-                      const updateHistoryData = JSON.parse(updateHistoryStr);
-        
-                      appList[index].update_history_contents = updateHistoryData;
-                      console.log('[react-native-fs] get update history');
-
-                      // AsyncStorage에 데이터 저장
-                      await AsyncStorage.setItem(value.package, JSON.stringify(updateHistoryData));
-                      // console.log('final update history :: ', JSON.stringify(appList[index].update_history_contents));
-
-                      console.log('unlink update History');
-                      await RNFS.unlink(updateHistoryPath);
-
-                    }
-
-                    const updateHistoryExist2 = await RNFS.exists(updateHistoryPath);
-                    console.log('update History exists : ', updateHistoryExist2);
-                    if (updateHistoryExist2) {
-                      console.log('unlink update History');
-                      await RNFS.unlink(updateHistoryPath);
-                      console.log('unlink update History OK');
-                    }
-
-                  } else {
-                    // AsyncStorage에서 가져온 데이터를 사용
-                    const latestUpdateHistory = JSON.parse(savedUpdateHistory);
-                    appList[index].update_history_contents = latestUpdateHistory;
-                    console.log('[asyncstorage] use update history');
-                  }
-
-                  // 22.11.07
-                  // appTaskIndex++;
-                  // setRefreshText(`앱 정보 가져오는 중 (${appTaskIndex} / ${appListLength})`);
-                  resolve(true);
-
-
-                } catch (e) {
-                  console.log ('for of error : ', e);
-                  reject(e);
-                }
-              });
-              // 22.11.07
-              appTaskPromise.push(promise);
-            }
-
-            await Promise.all(appTaskPromise);
-            
-            // setRefreshProgressBar(100);
-            readAppList(appList);
-            // setUninstalledAppList(appList);
-            setRefreshText('새로고침 성공');
-
-            globalContextDispatch({
-              type: 'SET_REFRESH_STATE',
-              payload: false
-            });
-
-            // 3초 뒤에 해더 제거
-            setTimeout(() => {
-              setIsAppRefresh(false);
-            }, 3000);
-          }
-
-        }).catch (e => {
-          console.log("ERROR you ::: ", e);
-        });
-      } catch (e) {
-        console.log('error : ', e);
-        globalContextDispatch({
-          type: 'SET_REFRESH_STATE',
-          payload: false
-        });
-
-        setIsAppRefresh(false);
-      }
+      setIsAppRefresh(false);
     }
+  }
 
+  useEffect(() => {
     appRefresh();
 
   }, [isAppRefresh]);
-
-
-
 
 
 
@@ -1137,7 +1149,13 @@ const App: () => Node = () => {
             
           </View>
           {
-            installedAppListEnable && (<AppList item={installedAppList}/>)
+            installedAppListEnable && 
+            (
+              <>
+                <AppList item={installedAppList}/>
+                <View style={{height: 20}} />
+              </>
+            )
           }
           
           <View style={{marginTop: 5, marginBottom: 10, borderTopColor: '#000000', borderTopWidth: 0.5, }} />
@@ -1166,7 +1184,9 @@ const App: () => Node = () => {
           </View>
         </View>
         { uninstalledAppListEnable && (<AppList item={uninstalledAppList}/>) }
-        
+
+        {/* 새로고침 버튼 */}
+        <RefreshButton />
 
       </ScrollView>
 
@@ -1318,6 +1338,21 @@ const styles = StyleSheet.create({
     color: "white",
     fontWeight: "bold",
     textAlign: "center"
+  },
+
+  refreshButton : {
+    height: 50,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: '#000000',
+    marginHorizontal: 20,
+    marginTop: 5,
+    marginBottom: 15,
+    // width: '100%',
+    // height: 100,
+    // flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 
 });

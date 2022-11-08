@@ -34,7 +34,7 @@ export default function AppList({item}) {
       keyExtractor={(item, index) => index.toString()}
       ItemSeparatorComponent={() => <View />}
       ListFooterComponent={() => <View />}
-      ListFooterComponentStyle={{height: 20,}}
+    //   ListFooterComponentStyle={{height: 20,}}
     />
   );
 }
@@ -122,12 +122,15 @@ function AppListItem({item, index}) {
             return;
         }
 
+        const downloadfilePath = `${RNFS.ExternalCachesDirectoryPath}/@sem_temp.apk`;
+
         // 다른 다운로드 작업 진행중 or 새로고침 중일 경우 예외처리
         if (globalContextState.isAppRefresh) {
             ToastAndroid.show('앱 새로고침 작업이 끝나고 시도해주세요.', ToastAndroid.SHORT);
             return;
         } else if (nowDownloadJobId != -1) {
             // 다운로드 취소
+            setActionButtonText('취소 중');
             RNFS.stopDownload(nowDownloadJobId);
             console.log('stopDownload ', nowDownloadJobId);
 
@@ -142,7 +145,7 @@ function AppListItem({item, index}) {
             // 임시파일 삭제 넣어야됨
             try {
                 // update apk 파일이 이미 있는 경우 삭제
-                const downloadfilePath = `${RNFS.DownloadDirectoryPath}/@sem_temp.apk`;
+                
                 
                 const updateApkExist = await RNFS.exists(downloadfilePath);
                 console.log('update temp APK exists : ', updateApkExist);
@@ -161,7 +164,7 @@ function AppListItem({item, index}) {
             return;
         }
 
-        const downloadfilePath = `${RNFS.DownloadDirectoryPath}/@sem_temp.apk`;
+
         console.log('url : ', url);
         console.log('DOWOLOAD ', downloadfilePath);
     
@@ -220,7 +223,7 @@ function AppListItem({item, index}) {
                     console.log(res);
                     if (res.statusCode == 200) {
                         setProgressBar(0);
-                        setNowDownloadJobId(res.jobId);
+                        
                     } else {
                         ToastAndroid.show('다운로드에 실패했습니다. 잠시 후 다시 시도하세요.', ToastAndroid.SHORT);
                         setActionButtonText(latestActionButtonText);
@@ -241,6 +244,7 @@ function AppListItem({item, index}) {
                 }
             });
             console.log('set jobId ::: ', ret.jobId);
+            setNowDownloadJobId(ret.jobId);
 
             globalContextDispatch({
                 type: 'SET_NOW_DOWNLOAD_JOBID',
@@ -366,11 +370,11 @@ function AppListItem({item, index}) {
             <View style={{flexDirection: 'row', flex: 1,}}>
                 <View style={styles.icon}>
                 {/* const iconPath = `file://${RNFS.DocumentDirectoryPath}/${value.package}/ic_launcher.png`; */}
-                    {/* <Image
+                    <Image
                         source ={{uri : iconPath}}
                         style={{width: 60, height: 60}}
-                    /> */}
-                    <FastImage style={{width: 60, height: 60}} resizeMode={FastImage.resizeMode.cover} source={{uri: iconPath}} />
+                    />
+                    {/* <FastImage style={{width: 60, height: 60}} resizeMode={FastImage.resizeMode.cover} source={{uri: iconPath}} /> */}
                 </View>
                 <View style={{justifyContent: 'space-between', flex: 1, marginTop: 10, marginBottom: 11, marginRight: 10,}}>
                     <View>
