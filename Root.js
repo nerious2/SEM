@@ -3,13 +3,16 @@ import { LogBox } from 'react-native';
 import App from './src/App';
 import { AppDetailModalProvider } from './src/Component/AppDetailModal';
 import { GlobalAppStateProvider } from './src/Component/GlobalContext';
+import { AppVersionSelectModalProvider } from './src/Component/AppVersionSelectModal';
 
 LogBox.ignoreLogs(['VirtualizedLists should never be nested inside plain ScrollViews with the same orientation']);
 
 const Root = () => (
   <GlobalAppStateProvider>
     <AppDetailModalProvider>
-      <App />
+      <AppVersionSelectModalProvider>
+        <App />
+      </AppVersionSelectModalProvider>
     </AppDetailModalProvider>
   </GlobalAppStateProvider>
 );

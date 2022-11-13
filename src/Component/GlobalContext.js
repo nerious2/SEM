@@ -3,7 +3,7 @@ import React, {createContext, useReducer} from 'react';
 
 
 /* Peer List Context */
-const globalContext = createContext('hello');
+const globalContext = createContext();
 
 
 // #################### DB list Reducer #####################

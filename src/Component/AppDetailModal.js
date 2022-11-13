@@ -49,7 +49,7 @@ const initialAppDetailState = {
   const reducerAppDetail = (state = initialAppDetailState, action) => {
     let savedData = new Array();
     switch (action.type) {
-      case 'INIT_APP_DETAIL':
+    case 'INIT_APP_DETAIL':
         return action.payload;
     case 'SET_MODAL_VISIBLE':
         return {

@@ -50,6 +50,7 @@ import RNApkInstallerN from 'react-native-apk-installer-n';
 
 import BottomToolbar from './Component/BottomToolbar';
 import AppDetailModal from './Component/AppDetailModal';
+import AppVersionSelectModal, { appVersionSelectContext, initialAppVersionSelectState } from './Component/AppVersionSelectModal';
 
 import { globalContext } from './Component/GlobalContext';
 
@@ -68,8 +69,16 @@ const App: () => Node = () => {
   const globalContextState = useContext(globalContext).state;
   const globalContextDispatch = useContext(globalContext).dispatch;
 
-  const installingPackage = useRef({package: '', version: ''});
+  // App VersionSelect modal state
+  const appVSContextState = useContext(appVersionSelectContext).state;
+  const appVSContextDispatch = useContext(appVersionSelectContext).dispatch;
 
+  // App VersionSelect modal state on handleAppStateChange
+  const isAppVSModalVisable = useRef(false);
+
+
+  const installingPackage = useRef({package: '', version: ''});
+  
 
 
   // App Update Available state
@@ -107,6 +116,8 @@ const App: () => Node = () => {
           if (savedAppSetting.current.version !== VersionCheck.getCurrentVersion()) {
             console.log('====AsyncStorage Setting version is incurrent');
             savedAppSetting.current.updateAlertEnable = true;
+            // 해당 앱의 버전 넣기
+            savedAppSetting.current.version = VersionCheck.getCurrentVersion();
             await AsyncStorage.setItem('@SEM_SETTING', JSON.stringify(defaultSetting));
           }
 
@@ -158,6 +169,11 @@ const App: () => Node = () => {
 
   }, [globalContextState.installingPackage]);
 
+  useEffect(() => {
+    console.log('--------------------------useEffect appVSContextState modalVisible ', appVSContextState.modalVisible);
+    isAppVSModalVisable.current = appVSContextState.modalVisible;
+  }, [appVSContextState.modalVisible]);
+
 
   const backAction = () => {
     Alert.alert("종료", "모두의이북을 종료하시겠습니까?", [
@@ -182,167 +198,6 @@ const App: () => Node = () => {
   }, []);
 
 
-
-
-  const handleAppStateChange = async(nextAppState) => {
-    console.log(`-----appState nextAppState ${appState.current} -> ${nextAppState}`);
-    if (
-      appState.current.match(/inactive|background/) &&
-      nextAppState === 'active'
-    ) {
-      console.log('-----App has come to the foreground!');
-
-      const checkApp = installingPackage.current;
-      // readAppList(managedAppList.app);
-
-      // 인스톨 상태인지 확인
-      if (checkApp.package.length > 0) {
-        console.log('app install detected. ', JSON.stringify(checkApp));
-
-        try {
-          // update apk 파일이 이미 있는 경우 삭제
-          const downloadfilePath = `${RNFS.ExternalCachesDirectoryPath}/@sem_temp.apk`;
-
-          const updateApkExist = await RNFS.exists(downloadfilePath);
-          console.log('update temp APK exists : ', updateApkExist);
-          if (updateApkExist) {
-            console.log('unlink update APK');
-            await RNFS.unlink(downloadfilePath);
-            console.log('unlink update APK OK');
-          }
-        } catch (e) {
-          console.log('handleAppStateChange : temp apk check error === ', e);
-        }
-
-
-        // 설치된 앱 목록 재확인
-        let isInstallSuccess = false;
-        let installAppLabel = '';
-
-        function ascend(a, b) {
-          return a.label.toLowerCase() > b.label.toLowerCase() ? 1 : a.label.toLowerCase() < b.label.toLowerCase() ? -1 : 0;
-        }
-
-        function ascendUninstalledApp(a, b) {
-          // SDK 버전에 충족하지 않은 경우 (설치불가) 최하위로 내림
-          let a_isUpdatable = (Platform.Version >= a.minimum_android_sdk) ? true : false;
-          let b_isUpdatable = (Platform.Version >= b.minimum_android_sdk) ? true : false;
-          
-          if (a_isUpdatable === b_isUpdatable) {
-            return a.label.toLowerCase() > b.label.toLowerCase() ? 1 : a.label.toLowerCase() < b.label.toLowerCase() ? -1 : 0;
-          } else if (a_isUpdatable) {
-            return -1;
-          } else if (b_isUpdatable) {
-            return 1;
-          } else {
-            return 0;
-          }
-
-        }
-
-        function ascendInstalledApp(a, b) {
-          
-          // SDK 버전에 충족하고, 업데이트가 있으면 리스트 최상위로 올림
-          
-          let a_isUpdated = (a.versionName !== a.version && a.is_update_target && Platform.Version >= a.minimum_android_sdk) ? true : false;
-          let b_isUpdated = (b.versionName !== b.version && b.is_update_target && Platform.Version >= b.minimum_android_sdk) ? true : false;
-
-          if (a_isUpdated === b_isUpdated) {
-            return a.label.toLowerCase() > b.label.toLowerCase() ? 1 : a.label.toLowerCase() < b.label.toLowerCase() ? -1 : 0;
-          } else if (a_isUpdated) {
-            return -1;
-          } else if (b_isUpdated) {
-            return 1;
-          } else {
-            return 0;
-          }
-          
-        }
-
-        const temp = await NativeModules.InstalledApps.getApps();
-    
-        let tempAllApps = JSON.parse(temp);
-    
-        let installedApps = new Array();
-        managedAppList.current.app.filter((item) => {
-          const result = tempAllApps.filter((i) => i.name === item.package);
-    
-          if (result.length > 0 && item.package === result[0].name) {
-            installedApps.push({...item, versionName: result[0].versionName, versionCode: result[0].versionCode});
-
-            // 설치되었는지 확인
-            if (item.package == checkApp.package && 
-                result[0].versionName == checkApp.version) {
-                console.log ('install success');
-                isInstallSuccess = true;
-                installAppLabel = item.label;
-            }
-          }
-        });
-    
-        let uninstalledApps = managedAppList.current.app.filter((item) => !installedApps.some((i) => i?.package === item.package)).sort(ascendUninstalledApp);
-    
-        installedApps.sort(ascendInstalledApp);
-    
-
-        console.log('installedApps : ', installedApps.length);
-        console.log('uninstalledApps : ', uninstalledApps.length);
-    
-        setUninstalledAppList(uninstalledApps);
-        if (installedApps.length > 0) setInstalledAppList(installedApps);
-
-        if (isInstallSuccess) {
-          console.log('app install success.');
-          ToastAndroid.show(`${installAppLabel}\n앱을 설치했습니다.`, ToastAndroid.LONG);
-
-          // 마지막으로 설치한 앱으로 기록
-          // globalContextDispatch({
-          //   type: 'SET_LATEST_INSTALLED_PACKAGE',
-          //   payload: {
-          //     package: globalContextState.installingPackage.package,
-          //     version: globalContextState.installingPackage.version,
-          //   }
-          // });
-
-        } else {
-          console.log('app install failed.');
-          ToastAndroid.show(`앱이 설치되지 않았습니다.`, ToastAndroid.LONG);
-          console.log(checkApp.latestActionButtonText);
-          // Action Button text를 이전 내용으로 되돌리기
-          checkApp.setActionButtonText(checkApp.latestActionButtonText);
-          
-        }
-
-        // 인스톨 패키지 초기화
-        globalContextDispatch({
-          type: 'SET_INSTALLING_PACKAGE',
-          payload: {
-            package: '',
-            version: '',
-            setActionButtonText: null,
-            latestActionButtonText: '',
-          }
-        });
-        
-      }
-    }
-    if (
-      appState.current.match(/inactive|active/) &&
-      nextAppState === 'background'
-    ) {
-      console.log('-----App has come to the background!');
-    }
-    appState.current = nextAppState;
-  };
-
-  useEffect(() => {
-    console.log('============ Dimensions : ', Dimensions.get("window"));
-    
-    AppState.addEventListener('change', handleAppStateChange);
-    return () => {
-      AppState.removeEventListener('change', handleAppStateChange);
-    };
-  }, []);
 
   // Internet 연결 상태 확인
   const isInternetReachable = useNetInfo().isInternetReachable;
@@ -428,10 +283,10 @@ const App: () => Node = () => {
         }
 
         setNowDownloadJobId(-1);
+        setRefreshProgressBar(-1);
 
         ToastAndroid.show('서버에 연결하는데 실패했습니다.', ToastAndroid.SHORT);
         setRefreshText('앱 업데이트 실패');
-        setRefreshProgressBar(-1);
 
         // 3초 뒤에 해더 제거
         setTimeout(() => {
@@ -592,8 +447,8 @@ const App: () => Node = () => {
     function ascendInstalledApp(a, b) {
       
       // SDK 버전에 충족하고, 업데이트가 있으면 리스트 최상위로 올림
-      let a_isUpdated = (a.versionName !== a.version && a.is_update_target && Platform.Version >= a.minimum_android_sdk) ? true : false;
-      let b_isUpdated = (b.versionName !== b.version && b.is_update_target && Platform.Version >= b.minimum_android_sdk) ? true : false;
+      let a_isUpdated = (!a?.is_past_version_installed && a.versionName !== a.version && a.is_update_target && Platform.Version >= a.minimum_android_sdk) ? true : false;
+      let b_isUpdated = (!b?.is_past_version_installed && b.versionName !== b.version && b.is_update_target && Platform.Version >= b.minimum_android_sdk) ? true : false;
 
       if (a_isUpdated === b_isUpdated) {
         return a.label.toLowerCase() > b.label.toLowerCase() ? 1 : a.label.toLowerCase() < b.label.toLowerCase() ? -1 : 0;
@@ -621,8 +476,24 @@ const App: () => Node = () => {
     appList.filter((item) => {
       const result = tempAllApps.filter((i) => i.name === item.package);
 
+      let is_past_version_installed = false;
+
       if (result.length > 0 && item.package === result[0].name) {
-        installedApps.push({...item, versionName: result[0].versionName, versionCode: result[0].versionCode});
+
+        // is_past_version이 true이고 past_version_list에서 현재 설치된 버전과 일치하는 경우 -> is_past_version_installed : true
+        if (item?.is_past_version !== undefined && item.is_past_version && item?.past_version_list?.version_list !== undefined) {
+
+          console.log('ffffffffffffffffffffff :: ', item?.past_version_list?.version_list);
+
+          const result2 = item?.past_version_list?.version_list?.filter((item2) => item2?.version === result[0].versionName);
+          console.log('ffffffffffffffffffffff  result length :: ', result2.length)
+          if (result2.length > 0) {
+            console.log(`[${item.package}] past version installed`);
+            is_past_version_installed = true;
+          }
+        }
+        
+        installedApps.push({...item, versionName: result[0].versionName, versionCode: result[0].versionCode, is_past_version_installed: is_past_version_installed});
       }
     });
 
@@ -841,12 +712,6 @@ const App: () => Node = () => {
           const appListLength = appList.length;
 
 
-          // AsyncStorage에 앱 리스트 저장
-          await AsyncStorage.setItem('@APP_LIST', JSON.stringify(appList));
-
-          // 관리할 앱 리스트를 ref에 저장
-          managedAppList.current = updateData;
-
 
           // 2022.11.07 promise.all 로 변경 (검증 필요)
           const appTaskPromise = [];
@@ -913,18 +778,47 @@ const App: () => Node = () => {
                 // AsyncStorage에 이미 저장되어있는지 확인
 
                 let needUpdateHistory = true;
-                const savedUpdateHistory = await AsyncStorage.getItem(value.package);
+                let needPastVersionList = false;
 
-                if (savedUpdateHistory != null) {
-                  const latestUpdateHistory = JSON.parse(savedUpdateHistory);
+                if (value?.is_past_version !== undefined && value.is_past_version) {
+                  console.log(`[${value.package}] version check : true`);
+                  needPastVersionList = true;
+                }
+
+                // 
+                // AsyncStorage --> packageName
+                // {
+                //   update_history.json,
+                //   past_version_list: {past_version_list}
+                // }
+                // 
+                const savedPackageData = await AsyncStorage.getItem(value.package);
+                let isChangedSavedPackageObj = false;
+                let savedPackageObj = {};
+                let savedPastVersionList = {};
+
+                if (savedPackageData != null) {
+                  savedPackageObj = JSON.parse(savedPackageData);
+                  savedPastVersionList = savedPackageObj?.past_version_list;
                   
-                  const result = latestUpdateHistory.update_log.filter((item) => item?.version === value.version);
-                  console.log('ddddddddddd  result length :: ', result.length)
-                  if (result.length > 0) {
+                  const result = savedPackageObj?.update_log.filter((item) => item?.version === value.version);
+                  console.log('ddddddddddd  result length :: ', result)
+                  if (result !== undefined && result.length > 0) {
                     console.log('ddddddddddd  :: needUpdate false');
                     needUpdateHistory = false;
+                  } 
+
+                  console.log(`[${value.package}] savedPastVersionList?.versionCode : ${savedPastVersionList?.version_code} / value?.past_version_code : ${value?.past_version_code}`);
+                  // 버전관리 지원 여부 체크
+                  if (needPastVersionList &&
+                    savedPastVersionList !== undefined &&
+                    savedPastVersionList?.version_code === value?.past_version_code) {
+                    console.log(`[${value.package}] version check : false`);
+                    needPastVersionList = false;
                   }
                 }
+
+                
 
                 if (needUpdateHistory) {
                   // 서버에서 update_history.json 다운로드
@@ -955,7 +849,12 @@ const App: () => Node = () => {
                     console.log('[react-native-fs] get update history');
 
                     // AsyncStorage에 데이터 저장
-                    await AsyncStorage.setItem(value.package, JSON.stringify(updateHistoryData));
+                    // await AsyncStorage.setItem(value.package, JSON.stringify(updateHistoryData));
+                    savedPackageObj = {
+                      ...updateHistoryData,
+                      past_version_list: savedPackageObj?.past_version_list,
+                    };
+                    isChangedSavedPackageObj = true;
                     // console.log('final update history :: ', JSON.stringify(appList[index].update_history_contents));
 
                     console.log('unlink update History');
@@ -973,9 +872,76 @@ const App: () => Node = () => {
 
                 } else {
                   // AsyncStorage에서 가져온 데이터를 사용
-                  const latestUpdateHistory = JSON.parse(savedUpdateHistory);
-                  appList[index].update_history_contents = latestUpdateHistory;
-                  console.log('[asyncstorage] use update history');
+                  let savedPackageObjTemp = savedPackageObj;
+                  delete savedPackageObjTemp.past_version_list;
+                  appList[index].update_history_contents = savedPackageObjTemp;
+                  console.log('[asyncstorage] use update history :: ', JSON.stringify(savedPackageObjTemp));
+                }
+
+
+
+                const pastVersionListPath = `file://${RNFS.CachesDirectoryPath}/${value.package}/past_version_list.json`;
+                if (needPastVersionList) {
+                  // 서버에서 past_version_list.json 다운로드
+                  console.log('download :: ', value.past_version_list);
+                  const pastVersionList_ret = RNFS.downloadFile({
+                    fromUrl: value.past_version_list,
+                    toFile: pastVersionListPath,
+                    connectionTimeout: 30000,
+                    readTimeout: 30000,
+                  });
+    
+                  console.log('past version list ready ', index);
+    
+                  const result3 = await pastVersionList_ret.promise;
+                  console.log('past version list end ', index);
+                  console.log('past version list result == ', result3);
+
+                            
+                  if(result3.statusCode == 200) {
+                    // setRefreshProgressBar(100);
+                    console.log("result3 for saving file===", result3);
+
+                    const pastVersionListStr = await RNFS.readFile(pastVersionListPath, 'utf8');
+      
+                    const pastVersionListData = JSON.parse(pastVersionListStr);
+      
+                    appList[index].past_version_list = pastVersionListData;
+                    console.log('[react-native-fs] get past version list');
+
+                    // AsyncStorage에 데이터 저장
+                    // await AsyncStorage.setItem(value.package, JSON.stringify(updateHistoryData));
+                    savedPackageObj.past_version_list = pastVersionListData;
+                    isChangedSavedPackageObj = true;
+                    // console.log('final update history :: ', JSON.stringify(appList[index].update_history_contents));
+
+                    console.log('unlink past version list');
+                    await RNFS.unlink(pastVersionListPath);
+
+                  }
+
+                  const updateHistoryExist2 = await RNFS.exists(pastVersionListPath);
+                  console.log('past version list exists : ', updateHistoryExist2);
+                  if (updateHistoryExist2) {
+                    console.log('unlink past version list');
+                    await RNFS.unlink(pastVersionListPath);
+                    console.log('unlink past version list OK');
+                  }
+                } else if (value?.is_past_version !== undefined && value.is_past_version) {
+                    console.log(`[${value.package}] version list already exist`);
+      
+                  // AsyncStorage에서 가져온 데이터를 사용
+                  appList[index].past_version_list = savedPastVersionList;
+                  console.log('[asyncstorage] use past version list :: ', JSON.stringify(savedPastVersionList));
+                }
+
+
+
+                // AsyncStorage 변경사항 감지 시 -> 반영
+                if (isChangedSavedPackageObj) {
+                  console.log('saved AsyncStorage Data :: ', value.package);
+                  console.log(JSON.stringify(savedPackageObj));
+                  await AsyncStorage.setItem(value.package, JSON.stringify(savedPackageObj));
                 }
 
                 // 22.11.07
@@ -996,7 +962,19 @@ const App: () => Node = () => {
           await Promise.all(appTaskPromise);
           
           // setRefreshProgressBar(100);
+
+          // AsyncStorage에 앱 리스트 저장
+          await AsyncStorage.setItem('@APP_LIST', JSON.stringify(appList));
+
+          // 관리할 앱 리스트를 ref에 저장
+
+          managedAppList.current = {
+            ...updateData,
+            app: appList,
+          };
+
           readAppList(appList);
+
           // setUninstalledAppList(appList);
           setRefreshText('새로고침 성공');
 
@@ -1047,6 +1025,202 @@ const App: () => Node = () => {
     console.log('event nativeEvent layout');
     console.log(event.nativeEvent.layout);
   }
+
+
+
+  // AppState EventListener
+  useEffect(() => {
+    console.log('============ Dimensions : ', Dimensions.get("window"));
+    
+    AppState.addEventListener('change', handleAppStateChange);
+    return () => {
+      AppState.removeEventListener('change', handleAppStateChange);
+    };
+  }, []);
+
+  const handleAppStateChange = async(nextAppState) => {
+    console.log(`-----appState nextAppState ${appState.current} -> ${nextAppState}`);
+    if (
+      appState.current.match(/inactive|background/) &&
+      nextAppState === 'active'
+    ) {
+      console.log('-----App has come to the foreground!');
+      console.log('appVSContextState.modalVisible ::: ', appVSContextState);
+
+      const checkApp = installingPackage.current;
+      // readAppList(managedAppList.app);
+
+      // 인스톨 상태인지 확인
+      if (checkApp.package.length > 0) {
+        console.log('app install detected. ', JSON.stringify(checkApp));
+
+        try {
+          // update apk 파일이 이미 있는 경우 삭제
+          const downloadfilePath = `${RNFS.ExternalCachesDirectoryPath}/@sem_temp.apk`;
+
+          const updateApkExist = await RNFS.exists(downloadfilePath);
+          console.log('update temp APK exists : ', updateApkExist);
+          if (updateApkExist) {
+            console.log('unlink update APK');
+            await RNFS.unlink(downloadfilePath);
+            console.log('unlink update APK OK');
+          }
+        } catch (e) {
+          console.log('handleAppStateChange : temp apk check error === ', e);
+        }
+
+
+        // 설치된 앱 목록 재확인
+        let isInstallSuccess = false;
+        let installAppLabel = '';
+
+        function ascend(a, b) {
+          return a.label.toLowerCase() > b.label.toLowerCase() ? 1 : a.label.toLowerCase() < b.label.toLowerCase() ? -1 : 0;
+        }
+
+        function ascendUninstalledApp(a, b) {
+          // SDK 버전에 충족하지 않은 경우 (설치불가) 최하위로 내림
+          let a_isUpdatable = (Platform.Version >= a.minimum_android_sdk) ? true : false;
+          let b_isUpdatable = (Platform.Version >= b.minimum_android_sdk) ? true : false;
+          
+          if (a_isUpdatable === b_isUpdatable) {
+            return a.label.toLowerCase() > b.label.toLowerCase() ? 1 : a.label.toLowerCase() < b.label.toLowerCase() ? -1 : 0;
+          } else if (a_isUpdatable) {
+            return -1;
+          } else if (b_isUpdatable) {
+            return 1;
+          } else {
+            return 0;
+          }
+
+        }
+
+        function ascendInstalledApp(a, b) {
+          
+          // SDK 버전에 충족하고, 업데이트가 있으면 리스트 최상위로 올림
+          
+          let a_isUpdated = (!a?.is_past_version_installed && a.versionName !== a.version && a.is_update_target && Platform.Version >= a.minimum_android_sdk) ? true : false;
+          let b_isUpdated = (!b?.is_past_version_installed && b.versionName !== b.version && b.is_update_target && Platform.Version >= b.minimum_android_sdk) ? true : false;
+
+          if (a_isUpdated === b_isUpdated) {
+            return a.label.toLowerCase() > b.label.toLowerCase() ? 1 : a.label.toLowerCase() < b.label.toLowerCase() ? -1 : 0;
+          } else if (a_isUpdated) {
+            return -1;
+          } else if (b_isUpdated) {
+            return 1;
+          } else {
+            return 0;
+          }
+          
+        }
+
+        const temp = await NativeModules.InstalledApps.getApps();
+    
+        let tempAllApps = JSON.parse(temp);
+    
+        let installedApps = new Array();
+        managedAppList.current.app.filter((item) => {
+          const result = tempAllApps.filter((i) => i.name === item.package);
+    
+          let is_past_version_installed = false;
+
+          if (result.length > 0 && item.package === result[0].name) {
+
+            // is_past_version이 true이고 past_version_list에서 현재 설치된 버전과 일치하는 경우 -> is_past_version_installed : true
+            if (item?.is_past_version !== undefined && item.is_past_version && item?.past_version_list?.version_list !== undefined) {
+    
+              console.log('2ffffffffffffffffffffff :: ', item?.past_version_list?.version_list);
+
+              const result2 = item?.past_version_list?.version_list?.filter((item2) => item2?.version === result[0].versionName);
+              console.log('ssssssssssssssss  result length :: ', result2.length)
+              if (result2.length > 0) {
+                console.log(`[${item.package}] past version installed`);
+                is_past_version_installed = true;
+              }
+            }
+
+            installedApps.push({...item, versionName: result[0].versionName, versionCode: result[0].versionCode, is_past_version_installed: is_past_version_installed});
+
+            // 설치되었는지 확인
+            if (item.package == checkApp.package && 
+                result[0].versionName == checkApp.version) {
+                console.log ('install success');
+                isInstallSuccess = true;
+                installAppLabel = item.label;
+            }
+          }
+        });
+
+    
+        let uninstalledApps = managedAppList.current.app.filter((item) => !installedApps.some((i) => i?.package === item.package)).sort(ascendUninstalledApp);
+    
+        installedApps.sort(ascendInstalledApp);
+    
+
+        console.log('installedApps : ', installedApps.length);
+        console.log('uninstalledApps : ', uninstalledApps.length);
+    
+        setUninstalledAppList(uninstalledApps);
+        if (installedApps.length > 0) setInstalledAppList(installedApps);
+
+        if (isInstallSuccess) {
+          console.log('app install success.');
+          ToastAndroid.show(`${installAppLabel}\n앱을 설치했습니다.`, ToastAndroid.LONG);
+
+
+          // AppVersionSelectModal이 켜진 상태 -> 모달 초기화 
+          console.log('isAppVSModalVisable.current ::: ', isAppVSModalVisable.current);
+          if (isAppVSModalVisable.current) {
+            console.log('===== appVS Modal reset!!!');
+            appVSContextDispatch({
+              type: 'INIT_APP_VERSION_LIST',
+              payload: initialAppVersionSelectState,
+            });
+          }
+
+          // 마지막으로 설치한 앱으로 기록
+          // globalContextDispatch({
+          //   type: 'SET_LATEST_INSTALLED_PACKAGE',
+          //   payload: {
+          //     package: globalContextState.installingPackage.package,
+          //     version: globalContextState.installingPackage.version,
+          //   }
+          // });
+
+        } else {
+          console.log('app install failed.');
+          ToastAndroid.show(`앱이 설치되지 않았습니다.`, ToastAndroid.LONG);
+          console.log(checkApp.latestActionButtonText);
+          // Action Button text를 이전 내용으로 되돌리기
+          checkApp.setActionButtonText(checkApp.latestActionButtonText);
+          
+        }
+
+        // 인스톨 패키지 초기화
+        globalContextDispatch({
+          type: 'SET_INSTALLING_PACKAGE',
+          payload: {
+            package: '',
+            version: '',
+            setActionButtonText: null,
+            latestActionButtonText: '',
+          }
+        });
+        
+      }
+    }
+    if (
+      appState.current.match(/inactive|active/) &&
+      nextAppState === 'background'
+    ) {
+      console.log('-----App has come to the background!');
+      console.log('appVSContextState.modalVisible ::: ', appVSContextState);
+    }
+    appState.current = nextAppState;
+  };
+
+
+
 
 
 
@@ -1195,6 +1369,7 @@ const App: () => Node = () => {
     
 
       <AppDetailModal />
+      <AppVersionSelectModal />
 
 
       {/* header */}

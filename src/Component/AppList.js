@@ -18,6 +18,7 @@ import RNFS from 'react-native-fs';
 import { useNetInfo } from '@react-native-community/netinfo';
 import { appDetailContext } from './AppDetailModal';
 import { globalContext } from './GlobalContext';
+import { appVersionSelectContext } from './AppVersionSelectModal';
 
 export default function AppList({item}) {
 
@@ -58,12 +59,19 @@ function AppListItem({item, index}) {
     const appDetailContextState = useContext(appDetailContext).state;
     const appDetailContextDispatch = useContext(appDetailContext).dispatch;
 
+    // app version select modal context
+    const appVSContextState = useContext(appVersionSelectContext).state;
+    const appVSContextDispatch = useContext(appVersionSelectContext).dispatch;
+
     // Global Context
     const globalContextState = useContext(globalContext).state;
     const globalContextDispatch = useContext(globalContext).dispatch;
 
     // icon path
     const iconPath = `file://${RNFS.DocumentDirectoryPath}/${item.package}/ic_launcher.png`;
+
+    // is past app installed
+    const [isPastVersion, setIsPastVersion] = useState(false);
 
     // jobId
     // const [jobId, setJobId] = useState(-1);
@@ -203,6 +211,7 @@ function AppListItem({item, index}) {
                 }
 
                 setNowDownloadJobId(-1);
+                setProgressBar(0);
 
                 ToastAndroid.show('서버에 연결하는데 실패했습니다.', ToastAndroid.SHORT);
                 setActionButtonText(latestActionButtonText);
@@ -221,14 +230,11 @@ function AppListItem({item, index}) {
                     clearTimeout(downloadTimeout);
                     console.log("Response begin ===\n\n");
                     console.log(res);
-                    if (res.statusCode == 200) {
-                        setProgressBar(0);
-                        
-                    } else {
+                    if (res.statusCode !== 200) {
                         ToastAndroid.show('다운로드에 실패했습니다. 잠시 후 다시 시도하세요.', ToastAndroid.SHORT);
                         setActionButtonText(latestActionButtonText);
                         setNowDownloadJobId(-1);
-
+                        setProgressBar(0);
                     }
                 },
                 progress: (res) => {
@@ -260,10 +266,11 @@ function AppListItem({item, index}) {
                 });
 
                 setNowDownloadJobId(-1);
+                setProgressBar(0);
 
                 if(res.statusCode == 200) {
                     // AppState.addEventListener('change', handleAppStateChange);
-                    setProgressBar(100);
+                    // setProgressBar(100);
                     setActionButtonText('설치 중');
                     console.log("res for saving file===", res);
                     console.log('globalContext installing package : ', appPackage, newVersion);
@@ -296,6 +303,7 @@ function AppListItem({item, index}) {
                 
                 setActionButtonText(latestActionButtonText);
                 setNowDownloadJobId(-1);
+                setProgressBar(0);
 
                 console.log('_____ERROR ', error.message, error.code);
             });
@@ -312,6 +320,7 @@ function AppListItem({item, index}) {
                 });
             }
             setNowDownloadJobId(-1);
+            setProgressBar(0);
 
 
         }
@@ -319,16 +328,44 @@ function AppListItem({item, index}) {
     
     useEffect(() => {
         let str = '';
+
+
+
+
         if (item?.versionName) {
             // 버전이 존재하는 경우 -> 설치된 앱
-            if (item.versionName !== item.version && item.is_update_target && Platform.Version >= item.minimum_android_sdk) {
+
+            // 해당 앱이 버전 선택 가능한 앱이며 (item.is_past_version) 해당 버전대가 설치된 경우는 실행으로 띄워야함
+            if (item?.is_past_version !== undefined && item.is_past_version) {
+                
+                const result = item?.past_version_list?.version_list?.filter((item2) => item2?.version === item.versionName);
+                console.log('ssssssssssssssss  result length :: ', result.length)
+                if (result.length > 0) {
+                    console.log(`[${item.package}] past version installed`);
+                    setIsPastVersion(true);
+                    str = '실행';
+                    
+                } else {
+                    console.log('ssssssssssssssss  :: failed');
+                    setIsPastVersion(false);
+
+                    if (item.versionName !== item.version && item.is_update_target && Platform.Version >= item.minimum_android_sdk) {
+                        str = '업데이트';
+                    } else {
+                        str = '실행';
+                    }
+                }
+
+            } else if (item.versionName !== item.version && item.is_update_target && Platform.Version >= item.minimum_android_sdk) {
                 str = '업데이트';
             } else {
                 str = '실행';
             }
         } else {
             // 안드로이드 API 확인
-            if (Platform.Version < item.minimum_android_sdk) {
+            if (item?.is_past_version !== undefined && item.is_past_version) {
+                str = '버전선택';
+            } else if (Platform.Version < item.minimum_android_sdk) {
                 str = '설치불가';
             } else {
                 str = '다운로드';
@@ -382,21 +419,25 @@ function AppListItem({item, index}) {
                         <View style={{flexDirection: 'row'}}>
                             {
                                 item?.versionName && (item?.versionName !== item.version) && (
-                                    <Text style={styles.appVersion} numberOfLines={1}>{item.versionName} → </Text>
+                                    <Text style={styles.appVersion} numberOfLines={1}>{item.versionName} {!isPastVersion && '→'} </Text>
                                 )
                             }
-                            <Text style={[
-                                {
-                                    fontWeight: item?.versionName && (item?.versionName !== item.version) 
-                                    ? 'bold' : 'normal',
-                                    textDecorationLine: item?.versionName && (item?.versionName !== item.version) && Platform.Version < item.minimum_android_sdk
-                                    ? 'line-through' : 'none',
-                                },
-                                styles.appVersion
-                            ]}
-                            numberOfLines={1}>
-                                {item.version}
-                            </Text>
+                            {
+                                !isPastVersion && (
+                                    <Text style={[
+                                        {
+                                            fontWeight: item?.versionName && (item?.versionName !== item.version) 
+                                            ? 'bold' : 'normal',
+                                            textDecorationLine: item?.versionName && (item?.versionName !== item.version) && Platform.Version < item.minimum_android_sdk
+                                            ? 'line-through' : 'none',
+                                        },
+                                        styles.appVersion
+                                    ]}
+                                    numberOfLines={1}>
+                                        {item.version}
+                                    </Text>
+                                )
+                            }
                         </View>
                         
                     </View>
@@ -420,9 +461,28 @@ function AppListItem({item, index}) {
                         styles.appButton
                     ]}
                     onPress={() => {
-                        if (actionButtonText == '설치불가') {
+                        if (actionButtonText === '설치불가') {
                             // const version = NativeModules.InstalledApps.getAndroidRelease();
                             ToastAndroid.show(`해당 기기의 안드로이드 버전과 호환되지 않습니다.\n현재 기기의 API ${Platform.Version} -> 필요 API ${item.minimum_android_sdk}`, ToastAndroid.LONG);
+                        } else if (actionButtonText === '버전선택') {
+                            // app version select modal 활성화
+                            console.log('======= ', JSON.stringify(item?.past_version_list));
+                            appVSContextDispatch({
+                                type: 'INIT_APP_VERSION_LIST',
+                                payload: {
+                                    modalVisible: true,
+                                    package: item.package,
+                                    label: item.label,
+                                    iconPath: iconPath,
+                                    latestVersion: item.version,
+                                    latestDate: item.date,
+                                    latestApkUrl: item.apk_url,
+                                    latestUpdateLog: item?.update_history_contents?.update_log,
+                                    minimumAndroidSdk: item.minimum_android_sdk,
+                                    versionCode: item?.past_version_list?.version_code,
+                                    versionList: item?.past_version_list?.version_list,
+                                },
+                            });
                         } else {
                             onPressAppButton(item.package, item.version, item.apk_url);
                         }
