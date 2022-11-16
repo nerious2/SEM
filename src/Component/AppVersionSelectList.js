@@ -17,7 +17,8 @@ import FastImage from 'react-native-fast-image';
 import RNFS from 'react-native-fs';
 import { useNetInfo } from '@react-native-community/netinfo';
 import { appDetailContext } from './AppDetailModal';
-import { globalContext } from './GlobalContext';
+import { globalContext, formatBytes, androidAPItoVersion } from './GlobalContext';
+import DeviceInfo from 'react-native-device-info';
 
 export default function AppVersionSelectList({item, packageName, packageLabel, onPressAppButton}) {
 
@@ -35,7 +36,7 @@ export default function AppVersionSelectList({item, packageName, packageLabel, o
         />
       }
       keyExtractor={(item, index) => index.toString()}
-      ItemSeparatorComponent={() => <View style={{borderBottomWidth: 0.5, borderBottomColor: '#ffffff',}}/>}
+      ItemSeparatorComponent={() => <View style={{borderBottomWidth: 0.8, borderBottomColor: '#000000',}}/>}
       ListFooterComponent={() => <View />}
     //   ListFooterComponentStyle={{height: 20,}}
     />
@@ -121,16 +122,18 @@ function AppVersionSelectListItem({item, index, packageName, label, onPressAppBu
             <View style={{flexDirection: 'row', flex: 1,}}>
                 <View style={{justifyContent: 'space-between', flex: 1, marginTop: 10, marginBottom: 11, marginRight: 10,}}>
                     <View>
-                        <Text style={styles.appLabel} numberOfLines={1}>{item.version_show}</Text>
+                        {/* 버전명 */}
+                        <Text style={styles.appLabel}>{item.version_show}</Text>
+                        {/* 필요 안드로이드 버전 */}
+                        <View style={{flexDirection: 'row', marginVertical: 3,}}>
+                            <View style={{backgroundColor: '#000000', height: 20, borderRadius: 5, paddingHorizontal: 5, justifyContent: 'center',}} >
+                                <Text style={{fontWeight: 'bold', fontSize: 10, color: '#ffffff',}}>Android {androidAPItoVersion(item.minimum_android_sdk)}</Text>
+                            </View>
+                            <View style={{flex: 1}}/>
+                        </View>
+                        {/* 설명 */}
                         <View style={{flexDirection: 'row'}}>
-                            <Text style={[
-                                {
-                                    fontWeight: 'normal',
-                                    textDecorationLine: 'none',
-                                },
-                                styles.appVersion
-                            ]}
-                            numberOfLines={1}>
+                            <Text style={styles.appContents}>
                                 {item.contents}
                             </Text>
                         </View>
@@ -155,7 +158,7 @@ function AppVersionSelectListItem({item, index, packageName, label, onPressAppBu
                     onPress={() => {
                         if (actionButtonText == '설치불가') {
                             // const version = NativeModules.InstalledApps.getAndroidRelease();
-                            ToastAndroid.show(`해당 기기의 안드로이드 버전과 호환되지 않습니다.\n현재 기기의 API ${Platform.Version} -> 필요 API ${item.minimum_android_sdk}`, ToastAndroid.LONG);
+                            ToastAndroid.show(`해당 기기의 안드로이드 버전과 호환되지 않습니다.\n현재 Android 버전 : ${DeviceInfo.getSystemVersion()}\n필요 Android 버전 : ${androidAPItoVersion(item.minimum_android_sdk)}`, ToastAndroid.LONG);
                         } else {
                             onPressAppButton(packageName, item.version, item.apk_url, [actionButtonText, setActionButtonText], [progressBar, setProgressBar], [nowDownloadJobId, setNowDownloadJobId]);
                         }
@@ -181,6 +184,13 @@ function AppVersionSelectListItem({item, index, packageName, label, onPressAppBu
                     }
 
                 </Pressable>
+
+                {/* 앱 용량 표시 */}
+                {
+                    item?.apk_size !== undefined && (
+                        <Text style={styles.appSize}>{formatBytes(item.apk_size, 1)}</Text>
+                    )
+                }
             </View>
         </View>
     );
@@ -190,10 +200,11 @@ const styles = StyleSheet.create({
     block: {backgroundColor: '#ffffff'},
     appBlock : {
         marginHorizontal: 10,
-        marginVertical: 5,
+        // marginVertical: 5,
         // paddingRight: 10,
         // width: '100%',
         // height: 100,
+
         flexDirection: 'row',
         justifyContent: 'space-between',
     },
@@ -210,8 +221,10 @@ const styles = StyleSheet.create({
         fontSize: 17,
         marginBottom: -2,
     },
-    appVersion: {
-        fontSize: 15,
+    appContents: {
+        fontWeight: 'normal',
+        textDecorationLine: 'none',
+        fontSize: 13,
     },
     appUpdateDate: {
         fontSize: 13,
@@ -224,5 +237,9 @@ const styles = StyleSheet.create({
         borderColor: '#000000',
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    appSize: {
+        fontSize: 13,
+        textAlign: 'center',
     },
 });

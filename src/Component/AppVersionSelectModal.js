@@ -26,10 +26,11 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import BottomToolbar from './BottomToolbar';
 import FastImage from 'react-native-fast-image';
 import AppVersionSelectList from './AppVersionSelectList';
-import { globalContext } from './GlobalContext';
+import { globalContext, formatBytes, androidAPItoVersion } from './GlobalContext';
 import { useNetInfo } from '@react-native-community/netinfo';
 import RNApkInstallerN from 'react-native-apk-installer-n';
 import ProgressBar from "react-native-animated-progress";
+import DeviceInfo from 'react-native-device-info';
 
 /* Peer List Context */
 const appVersionSelectContext = createContext();
@@ -391,7 +392,22 @@ export default function AppVersionSelectModal () {
                             resizeMethod='scale'
                             resizeMode='cover'
                             /> */}
-                            <FastImage style={{width: 40, height: 40}} resizeMode={FastImage.resizeMode.cover} source={{uri: appVSContextState.iconPath}} />
+                            <View>
+                            <FastImage style={{width: 40, height: 40}} resizeMode={FastImage.resizeMode.contain} source={{uri: appVSContextState.iconPath}} />
+                                {/* 패치 마크 */}
+                                {
+                                    appVSContextState?.isPatched && (
+                                        <View style={{position: 'absolute', bottom: -2, right: -3}}>
+                                            <FastImage
+                                                source={require('../../image/patch.png')}
+                                                style={{width: 30, height: 8}}
+                                                resizeMode={FastImage.resizeMode.contain}
+                                            />
+                                        </View>
+                                    )
+                                }
+                            </View>
+
                             {/* Text */}
                             <View style={{flex: 1, marginLeft: 10,}}>
                                 <Text numberOfLines={1} style={{fontWeight: 'bold', fontSize: 15}}>{appVSContextState.label}</Text>
@@ -435,12 +451,21 @@ export default function AppVersionSelectModal () {
                     >
  
                         {/* 최신 버전 */}
-                        <View style={{marginHorizontal: 10, marginBottom: 15,}}>
+                        <View style={{marginLeft: 10, marginBottom: 15,}}>
                             <Text style={{fontWeight: 'bold', fontSize: 16, marginVertical: 15,}}>최신 버전</Text>
 
                             <View style={{flexDirection: 'row', justifyContent: 'space-between',}} >
                                 <View style={{flex: 1, marginRight: 10,}}>
-                                    <Text style={{fontSize: 12, marginBottom: 12,}}>{`[버전 : ${appVSContextState.latestVersion} / 업데이트 날짜 : ${appVSContextState.latestDate}]`}</Text>
+                                    <Text style={{fontSize: 12,}}>{`[버전 : ${appVSContextState.latestVersion} / 업데이트 날짜 : ${appVSContextState.latestDate}]`}</Text>
+
+                                    {/* 필요 안드로이드 버전 */}
+                                    <View style={{flexDirection: 'row', marginVertical: 3,}}>
+                                        <View style={{backgroundColor: '#000000', height: 20, borderRadius: 5, paddingHorizontal: 5, justifyContent: 'center',}} >
+                                            <Text style={{fontWeight: 'bold', fontSize: 10, color: '#ffffff',}}>Android {androidAPItoVersion(appVSContextState.minimumAndroidSdk)}</Text>
+                                        </View>
+                                        <View style={{flex: 1}}/>
+                                    </View>
+
                                     <Text>{appLatestUpdateLog}</Text>
    
                                 </View>
@@ -462,7 +487,7 @@ export default function AppVersionSelectModal () {
                                         onPress={() => {
                                             if (actionButtonText == '설치불가') {
                                                 // const version = NativeModules.InstalledApps.getAndroidRelease();
-                                                ToastAndroid.show(`해당 기기의 안드로이드 버전과 호환되지 않습니다.\n현재 기기의 API ${Platform.Version} -> 필요 API ${appVSContextState.minimumAndroidSdk}`, ToastAndroid.LONG);
+                                                ToastAndroid.show(`해당 기기의 안드로이드 버전과 호환되지 않습니다.\n현재 Android 버전 : ${DeviceInfo.getSystemVersion()}\n필요 Android 버전 : ${androidAPItoVersion(appVSContextState.minimumAndroidSdk)}`, ToastAndroid.LONG);
                                             } else {
                                                 onPressAppButton(appVSContextState.package, appVSContextState.latestVersion, appVSContextState.latestApkUrl, [actionButtonText, setActionButtonText], [progressBar, setProgressBar], [nowDownloadJobId, setNowDownloadJobId]);
                                             }
@@ -488,6 +513,13 @@ export default function AppVersionSelectModal () {
                                         }
 
                                     </Pressable>
+
+                                    {/* 앱 용량 표시 */}
+                                    {
+                                        appVSContextState?.apk_size !== undefined && (
+                                            <Text style={styles.appSize}>{formatBytes(appVSContextState.apk_size, 1)}</Text>
+                                        )
+                                    }
                                 </View>
 
 
@@ -499,8 +531,8 @@ export default function AppVersionSelectModal () {
 
                         {/* 이전 버전 */}
 
-                        <View style={{marginHorizontal: 10, marginBottom: 15,}}>
-                            <Text style={{fontWeight: 'bold', fontSize: 16, marginVertical: 15,}}>이전 버전</Text>
+                        <View style={{marginBottom: 5,}}>
+                            <Text style={{fontWeight: 'bold', fontSize: 16, marginTop: 15, marginBottom: 5, marginHorizontal: 10,}}>이전 버전</Text>
                             <AppVersionSelectList 
                                 item={appVSContextState.versionList}
                                 packageName={appVSContextState.package}
@@ -573,6 +605,10 @@ const styles = StyleSheet.create({
         borderBottomColor: '#000000',
         width: '100%',
         // marginVertical: 10,
+    },
+    appSize: {
+        fontSize: 13,
+        textAlign: 'center',
     },
     appButton: {
         width: 70,

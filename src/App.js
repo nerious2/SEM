@@ -19,7 +19,7 @@ import {
   StatusBar,
   Animated,
   Pressable,
-  Button,
+  Linking,
   Dimensions,
   Platform,
   AppState,
@@ -35,18 +35,18 @@ import {
   responsiveFontSize
 } from "react-native-responsive-dimensions";
 
-import { State, Directions, FlingGestureHandler, gestureHandlerRootHOC } from 'react-native-gesture-handler';
+// import { State, Directions, FlingGestureHandler, gestureHandlerRootHOC } from 'react-native-gesture-handler';
 
-import RNFS from 'react-native-fs';
+import RNFS, { readdir } from 'react-native-fs';
 import FastImage from 'react-native-fast-image';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNetInfo } from '@react-native-community/netinfo';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import VersionCheck from 'react-native-version-check';
+import DeviceInfo from 'react-native-device-info';
 import AlertAsync from "react-native-alert-async";
 import ProgressBar from "react-native-animated-progress";
 import RNApkInstallerN from 'react-native-apk-installer-n';
-
+import RNExitApp from 'react-native-exit-app';
 
 import BottomToolbar from './Component/BottomToolbar';
 import AppDetailModal from './Component/AppDetailModal';
@@ -58,6 +58,8 @@ import AppList from './Component/AppList';
 
 Text.defaultProps = Text.defaultProps || {};
 Text.defaultProps.allowFontScaling = false;
+
+const githubPage = 'https://github.com/nerious2/SEM';
 
 const App: () => Node = () => {
   const [pathApps, setPathApps] = useState([]);
@@ -105,7 +107,7 @@ const App: () => Node = () => {
           savedAppSetting.current = defaultSetting;
 
           // 해당 앱의 버전 넣기
-          savedAppSetting.current.version = VersionCheck.getCurrentVersion();
+          savedAppSetting.current.version = DeviceInfo.getVersion();;
 
           await AsyncStorage.setItem('@SEM_SETTING', JSON.stringify(defaultSetting));
           
@@ -113,17 +115,18 @@ const App: () => Node = () => {
           savedAppSetting.current = JSON.parse(asyncSettingData);
 
           // 저장된 세팅의 버전과 현재 앱의 버전이 다를 경우 -> updateAlertEnable true로 초기화
-          if (savedAppSetting.current.version !== VersionCheck.getCurrentVersion()) {
+          if (savedAppSetting.current.version !== DeviceInfo.getVersion()) {
             console.log('====AsyncStorage Setting version is incurrent');
             savedAppSetting.current.updateAlertEnable = true;
             // 해당 앱의 버전 넣기
-            savedAppSetting.current.version = VersionCheck.getCurrentVersion();
-            await AsyncStorage.setItem('@SEM_SETTING', JSON.stringify(defaultSetting));
+            savedAppSetting.current.version = DeviceInfo.getVersion();
+            await AsyncStorage.setItem('@SEM_SETTING', JSON.stringify(savedAppSetting.current));
           }
 
         }
       } catch (e) {
         console.log('====AsyncStorage Error : ', e);
+        ToastAndroid.show(e, ToastAndroid.SHORT);
       }
 
     }
@@ -155,6 +158,9 @@ const App: () => Node = () => {
       }
 
     }
+
+    // 앱 처음 실행 시 동작 코드
+    console.log('THIS VERSION : ', DeviceInfo.getVersion());
     makeAppListFirst();
     getSavedSetting();
     checkTempFile();
@@ -182,7 +188,7 @@ const App: () => Node = () => {
         onPress: () => null,
         style: "cancel"
       },
-      { text: "확인", onPress: () => BackHandler.exitApp() }
+      { text: "확인", onPress: () => RNExitApp.exitApp() }
     ]);
     return true;
   };
@@ -229,6 +235,111 @@ const App: () => Node = () => {
   // 앱 상세정보 Modal
   const [appDetailModal, setAppDetailModal] = useState(true);
 
+  // 앱을 초기화한다
+  const resetApp = () => {
+
+    // 앱 새로고침
+    if (isAppRefresh) {
+      ToastAndroid.show('새로고침이 끝나고 시도하세요.', ToastAndroid.SHORT);
+      return;
+    }
+  
+    if (globalContextState.nowDownloadJobId != -1) {
+      ToastAndroid.show('앱의 다운로드가 끝나고 시도하세요.', ToastAndroid.SHORT);
+      return;
+    }
+
+
+    Alert.alert("앱 초기화", "모두의이북 앱을 초기화하시겠습니까?\n문제가 발생한 경우에만 초기화를 하시기를 권장합니다.", [
+      {
+        text: "취소",
+        onPress: () => null,
+        style: "cancel"
+      },
+      { text: "확인", onPress: async () => {
+        // 앱 초기화 실행
+        setRefreshText('앱 초기화 진행 중');
+        setIsHeaderEnable(true);
+
+        // ExternalCache
+        try {
+          const extCacheDirs = await readdir(`file://${RNFS.ExternalCachesDirectoryPath}`);
+          console.log('Ext Cache Dirs : ', extCacheDirs);
+
+          for (const [index, value] of extCacheDirs.entries()) {
+            try {
+              console.log('DELETE :: ', value);
+              await RNFS.unlink(`file://${RNFS.ExternalCachesDirectoryPath}/${value}`);
+            } catch(e) {
+              console.log(e.message);
+            }
+          }
+        } catch(e) {
+          console.log('Ext cache clear Error : ', e);
+          ToastAndroid.show(`Ext cache clear Error : ${e}`, ToastAndroid.SHORT);
+        }
+        
+        // Cache
+        try {
+          const cacheDirs = await readdir(`file://${RNFS.CachesDirectoryPath}`);
+          console.log('Cache Dirs : ', cacheDirs);
+
+          for (const [index, value] of cacheDirs.entries()) {
+            try {
+              console.log('DELETE :: ', value);
+              await RNFS.unlink(`file://${RNFS.CachesDirectoryPath}/${value}`);
+            } catch(e) {
+              console.log(e.message);
+            }
+          }
+        } catch(e) {
+          console.log('Cache clear Error : ', e);
+          ToastAndroid.show(`Cache clear Error : ${e}`, ToastAndroid.SHORT);
+        }
+
+        // Document
+        try {
+          const docDirs = await readdir(`file://${RNFS.DocumentDirectoryPath}`);
+          console.log('Document Dirs : ', docDirs);
+
+          for (const [index, value] of docDirs.entries()) {
+            try {
+              console.log('DELETE :: ', value);
+              await RNFS.unlink(`file://${RNFS.DocumentDirectoryPath}/${value}`);
+            } catch(e) {
+              console.log(e.message);
+            }
+          }
+        } catch(e) {
+          console.log('Document clear Error : ', e);
+          ToastAndroid.show(`Document clear Error : ${e}`, ToastAndroid.SHORT);
+        }
+
+
+
+        // AsyncStorage 삭제
+        try {
+          await AsyncStorage.clear();
+        } catch(e) {
+          console.log('AsyncStorage clear Error : ', e);
+          ToastAndroid.show(`AsyncStorage clear Error : ${e}`, ToastAndroid.SHORT);
+        }
+        
+        setRefreshText('앱 초기화 성공');
+
+        Alert.alert("앱 초기화 완료", "모두의이북 앱을 초기화하였습니다.\n앱을 다시 실행하시면 서버에서 모든 정보를 다시 가져옵니다.\n\n앱을 종료합니다.", [
+            { text: "확인", onPress: () => {
+                // 앱 종료
+                RNExitApp.exitApp();
+              }
+            }
+          ], { cancelable: false }
+        );
+      } },
+    ],
+      { cancelable: true }
+    );
+  }
 
   // 앱 업데이트를 수행한다
   const updateApp = async (url, forceUpdate=false) => {
@@ -401,7 +512,7 @@ const App: () => Node = () => {
             ToastAndroid.show('앱의 다운로드가 끝나고 시도하세요.', ToastAndroid.SHORT);
             return;
           }
-
+          setRefreshText('새로고침 진행 중');
           setIsAppRefresh(true);
         }}
 
@@ -429,8 +540,8 @@ const App: () => Node = () => {
 
     function ascendUninstalledApp(a, b) {
       // SDK 버전에 충족하지 않은 경우 (설치불가) 최하위로 내림
-      let a_isUpdatable = (Platform.Version >= a.minimum_android_sdk) ? true : false;
-      let b_isUpdatable = (Platform.Version >= b.minimum_android_sdk) ? true : false;
+      let a_isUpdatable = (a?.is_past_version === true || Platform.Version >= a.minimum_android_sdk) ? true : false;
+      let b_isUpdatable = (b?.is_past_version === true || Platform.Version >= b.minimum_android_sdk) ? true : false;
       
       if (a_isUpdatable === b_isUpdatable) {
         return a.label.toLowerCase() > b.label.toLowerCase() ? 1 : a.label.toLowerCase() < b.label.toLowerCase() ? -1 : 0;
@@ -505,7 +616,8 @@ const App: () => Node = () => {
     console.log('uninstalledApps : ', uninstalledApps.length);
 
     setUninstalledAppList(uninstalledApps);
-    if (installedApps.length > 0) setInstalledAppList(installedApps);
+    // if (installedApps.length > 0) setInstalledAppList(installedApps);
+    setInstalledAppList(installedApps);
     
   }
 
@@ -644,7 +756,7 @@ const App: () => Node = () => {
           // console.log('update Data ::: ', JSON.stringify(updateData));
 
           // 앱 업데이트 유무 확인
-          if (updateData.update_version !== VersionCheck.getCurrentVersion()) {
+          if (updateData.update_version !== DeviceInfo.getVersion()) {
             console.log('need update');
 
             // 필수 업데이트가 아니고, 업데이트 알림을 이전에 끈 경우 알림 메시지 스킵savedAppSetting
@@ -666,35 +778,38 @@ const App: () => Node = () => {
               ];
 
               setRefreshText(`${updateData.update_type === 'emergency' ? emergencyTitle : normalTitle} 발견`);
-
-              const choice = await AlertAsync(
-                updateData.update_type === 'emergency' ? emergencyTitle : normalTitle,
-                `${updateData.update_type === 'emergency' ? emergencyContents : normalContents}\n\n${updateData.update_history}`,
-                updateData.update_type === 'emergency' ? emergencySelect : normalSelect,
-                {
-                  cancelable: updateData.update_type === 'emergency' ? false : true,
-                  onDismiss: () => 'no',
-                },
-              );
-
-              console.log('choice :::: ', choice);
-
-              if (choice === 'yes') {
-                // 업데이트 수행
-                await updateApp(updateData.update_url, true);
-
-
-              } else if (choice === 'disable') {
-                // 알림 표시 안함 AsyncStorage 저장
-                savedAppSetting.current.updateAlertEnable = false;
-                await AsyncStorage.setItem('@SEM_SETTING', JSON.stringify(savedAppSetting.current));
-                console.log('saved setting ===> AsyncStorage');
-
-              } else if (choice === 'exit') {
+              try {
+                const choice = await AlertAsync(
+                  updateData.update_type === 'emergency' ? emergencyTitle : normalTitle,
+                  `${updateData.update_type === 'emergency' ? emergencyContents : normalContents}\n\n${updateData.update_history}`,
+                  updateData.update_type === 'emergency' ? emergencySelect : normalSelect,
+                  {
+                    cancelable: updateData.update_type === 'emergency' ? false : true,
+                    onDismiss: () => 'no',
+                  },
+                );
+  
+                console.log('choice :::: ', choice);
+  
+                if (choice === 'yes') {
+                  // 업데이트 수행
+                  await updateApp(updateData.update_url, true);
+  
+  
+                } else if (choice === 'disable') {
+                  // 알림 표시 안함 AsyncStorage 저장
+                  savedAppSetting.current.updateAlertEnable = false;
+                  await AsyncStorage.setItem('@SEM_SETTING', JSON.stringify(savedAppSetting.current));
+                  console.log('saved setting ===> AsyncStorage');
+  
+                } else if (choice === 'exit') {
+                  // 앱 종료
+                  RNExitApp.exitApp();
+                }
+              } catch (e) {
                 // 앱 종료
-                BackHandler.exitApp();
+                RNExitApp.exitApp();
               }
-
 
             } else {
               console.log('update alert skip');
@@ -750,7 +865,12 @@ const App: () => Node = () => {
                   const result = await icon_ret.promise;
                   console.log('icon end ', index);
                   console.log('icon result == ', result);
-
+                  
+                  if(result.statusCode == 200) {
+                    FastImage.preload([{
+                      uri: iconPath,
+                    }]);
+                  }
 
                 } catch (e) {
                   console.log ('for of error : ', e);
@@ -1080,8 +1200,8 @@ const App: () => Node = () => {
 
         function ascendUninstalledApp(a, b) {
           // SDK 버전에 충족하지 않은 경우 (설치불가) 최하위로 내림
-          let a_isUpdatable = (Platform.Version >= a.minimum_android_sdk) ? true : false;
-          let b_isUpdatable = (Platform.Version >= b.minimum_android_sdk) ? true : false;
+          let a_isUpdatable = (a?.is_past_version === true || Platform.Version >= a.minimum_android_sdk) ? true : false;
+          let b_isUpdatable = (b?.is_past_version === true || Platform.Version >= b.minimum_android_sdk) ? true : false;
           
           if (a_isUpdatable === b_isUpdatable) {
             return a.label.toLowerCase() > b.label.toLowerCase() ? 1 : a.label.toLowerCase() < b.label.toLowerCase() ? -1 : 0;
@@ -1161,7 +1281,8 @@ const App: () => Node = () => {
         console.log('uninstalledApps : ', uninstalledApps.length);
     
         setUninstalledAppList(uninstalledApps);
-        if (installedApps.length > 0) setInstalledAppList(installedApps);
+        // if (installedApps.length > 0) setInstalledAppList(installedApps);
+        setInstalledAppList(installedApps);
 
         if (isInstallSuccess) {
           console.log('app install success.');
@@ -1362,6 +1483,34 @@ const App: () => Node = () => {
         {/* 새로고침 버튼 */}
         <RefreshButton />
 
+        {/* 모두의이북 정보 */}
+
+        <View style={{alignItems: 'center', marginBottom: 15,}}>
+          <Pressable
+            style={{alignItems: 'center', paddingVertical: 5, }}
+            onPress={async () => {
+              // github 사이트 열기
+              const result = Linking.canOpenURL(githubPage);
+
+              if (result) {
+                Linking.openURL(githubPage);
+              } else {
+                ToastAndroid.show('웹 페이지를 열 수 없습니다.', ToastAndroid.SHORT);
+              }
+            }}
+    
+            // 길게 눌러 앱 초기화
+            delayLongPress={1500}
+            onLongPress={() => {
+              resetApp();
+            }}
+          >
+            <Text style={{fontSize: 12, color: '#000000', fontWeight: 'bold'}} >모 두 의 이 북  v{DeviceInfo.getVersion()}</Text>
+            {/* <Text style={{fontSize: 10, color: '#000000',}}>{DeviceInfo.getVersion()}</Text> */}
+            <Text style={{fontSize: 11, color: '#000000',}}>{githubPage}</Text>
+          </Pressable>
+        </View>
+
       </ScrollView>
 
       {/* 하단 페이지 이동 바 */}
@@ -1522,7 +1671,7 @@ const styles = StyleSheet.create({
     borderColor: '#000000',
     marginHorizontal: 20,
     marginTop: 5,
-    marginBottom: 15,
+    marginBottom: 10,
     // width: '100%',
     // height: 100,
     // flexDirection: 'row',

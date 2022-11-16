@@ -17,8 +17,9 @@ import FastImage from 'react-native-fast-image';
 import RNFS from 'react-native-fs';
 import { useNetInfo } from '@react-native-community/netinfo';
 import { appDetailContext } from './AppDetailModal';
-import { globalContext } from './GlobalContext';
+import { globalContext, formatBytes, androidAPItoVersion } from './GlobalContext';
 import { appVersionSelectContext } from './AppVersionSelectModal';
+import DeviceInfo from 'react-native-device-info';
 
 export default function AppList({item}) {
 
@@ -339,8 +340,8 @@ function AppListItem({item, index}) {
             if (item?.is_past_version !== undefined && item.is_past_version) {
                 
                 const result = item?.past_version_list?.version_list?.filter((item2) => item2?.version === item.versionName);
-                console.log('ssssssssssssssss  result length :: ', result.length)
-                if (result.length > 0) {
+                console.log(`${item.package}  result length :: ${result?.length}`)
+                if (result?.length > 0) {
                     console.log(`[${item.package}] past version installed`);
                     setIsPastVersion(true);
                     str = '실행';
@@ -397,8 +398,10 @@ function AppListItem({item, index}) {
                         description: item?.update_history_contents?.description,
                         patch_description: item?.update_history_contents?.patch_description,
                         update_log: item?.update_history_contents?.update_log,
+                        isPatched: item?.is_patched,
                         version: item.version,
                         date: item.date,
+                        minimumAndroidSdk: item.minimum_android_sdk,
                     },
                 });
 
@@ -407,11 +410,23 @@ function AppListItem({item, index}) {
             <View style={{flexDirection: 'row', flex: 1,}}>
                 <View style={styles.icon}>
                 {/* const iconPath = `file://${RNFS.DocumentDirectoryPath}/${value.package}/ic_launcher.png`; */}
-                    <Image
+                    {/* <Image
                         source ={{uri : iconPath}}
                         style={{width: 60, height: 60}}
-                    />
-                    {/* <FastImage style={{width: 60, height: 60}} resizeMode={FastImage.resizeMode.cover} source={{uri: iconPath}} /> */}
+                    /> */}
+                    <FastImage style={{width: 60, height: 60}} resizeMode={FastImage.resizeMode.contain} source={{uri: iconPath}} />
+                    {/* 패치 마크 */}
+                    {
+                        item?.is_patched && (
+                            <View style={{position: 'absolute', bottom: 10, right: -3}}>
+                                <FastImage
+                                    source={require('../../image/patch.png')}
+                                    style={{width: 45, height: 13}}
+                                    resizeMode={FastImage.resizeMode.contain}
+                                />
+                            </View>
+                        )
+                    }
                 </View>
                 <View style={{justifyContent: 'space-between', flex: 1, marginTop: 10, marginBottom: 11, marginRight: 10,}}>
                     <View>
@@ -430,10 +445,12 @@ function AppListItem({item, index}) {
                                             ? 'bold' : 'normal',
                                             textDecorationLine: item?.versionName && (item?.versionName !== item.version) && Platform.Version < item.minimum_android_sdk
                                             ? 'line-through' : 'none',
+                                            flex: 1,
                                         },
                                         styles.appVersion
                                     ]}
-                                    numberOfLines={1}>
+                                    numberOfLines={1}
+                                    >
                                         {item.version}
                                     </Text>
                                 )
@@ -442,7 +459,17 @@ function AppListItem({item, index}) {
                         
                     </View>
 
-                    <Text style={styles.appUpdateDate} numberOfLines={1}>{item.date}</Text>
+                    <View style={{flexDirection: 'row'}} >
+                        {/* 업데이트 날짜 */}
+                        <Text style={styles.appUpdateDate} numberOfLines={1}>{item.date}</Text>
+                        {
+                            // apk_size가 존재하는 경우 : 용량 표시
+                            item?.apk_size !== undefined && actionButtonText !== '실행' && actionButtonText !== '버전선택' &&(
+                                <Text style={styles.appSize} numberOfLines={1}> | {formatBytes(item.apk_size, 1)}</Text>
+                            )
+                        }
+                    </View>
+                    
 
                 </View>
             </View>
@@ -463,7 +490,7 @@ function AppListItem({item, index}) {
                     onPress={() => {
                         if (actionButtonText === '설치불가') {
                             // const version = NativeModules.InstalledApps.getAndroidRelease();
-                            ToastAndroid.show(`해당 기기의 안드로이드 버전과 호환되지 않습니다.\n현재 기기의 API ${Platform.Version} -> 필요 API ${item.minimum_android_sdk}`, ToastAndroid.LONG);
+                            ToastAndroid.show(`해당 기기의 안드로이드 버전과 호환되지 않습니다.\n현재 Android 버전 : ${DeviceInfo.getSystemVersion()}\n필요 Android 버전 : ${androidAPItoVersion(item.minimum_android_sdk)}`, ToastAndroid.LONG);
                         } else if (actionButtonText === '버전선택') {
                             // app version select modal 활성화
                             console.log('======= ', JSON.stringify(item?.past_version_list));
@@ -481,6 +508,8 @@ function AppListItem({item, index}) {
                                     minimumAndroidSdk: item.minimum_android_sdk,
                                     versionCode: item?.past_version_list?.version_code,
                                     versionList: item?.past_version_list?.version_list,
+                                    isPatched: item?.is_patched,
+                                    apk_size: item?.apk_size,
                                 },
                             });
                         } else {
@@ -545,6 +574,10 @@ const styles = StyleSheet.create({
     },
     appUpdateDate: {
         fontSize: 13,
+    },
+    appSize: {
+        fontSize: 13,
+        flex: 1,
     },
     appButton: {
         width: 70,

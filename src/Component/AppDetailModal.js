@@ -25,6 +25,7 @@ import RNFS from 'react-native-fs';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import BottomToolbar from './BottomToolbar';
 import FastImage from 'react-native-fast-image';
+import { androidAPItoVersion } from './GlobalContext';
 
 /* Peer List Context */
 const appDetailContext = createContext();
@@ -155,7 +156,21 @@ export default function AppDetailModal () {
                             resizeMethod='scale'
                             resizeMode='cover'
                             /> */}
-                            <FastImage style={{width: 40, height: 40}} resizeMode={FastImage.resizeMode.cover} source={{uri: appDetailContextState.iconPath}} />
+                            <View>
+                                <FastImage style={{width: 40, height: 40}} resizeMode={FastImage.resizeMode.contain} source={{uri: appDetailContextState.iconPath}} />
+                                {/* 패치 마크 */}
+                                {
+                                    appDetailContextState?.isPatched && (
+                                        <View style={{position: 'absolute', bottom: -2, right: -3}}>
+                                            <FastImage
+                                                source={require('../../image/patch.png')}
+                                                style={{width: 30, height: 8}}
+                                                resizeMode={FastImage.resizeMode.contain}
+                                            />
+                                        </View>
+                                    )
+                                }
+                            </View>
                             {/* Text */}
                             <View style={{flex: 1, marginLeft: 10,}}>
                             <Text numberOfLines={1} style={{fontWeight: 'bold', fontSize: 15}}>{appDetailContextState.label}</Text>
@@ -197,7 +212,17 @@ export default function AppDetailModal () {
                         
                         <View style={{marginHorizontal: 10, marginBottom: 15,}}>
                             <Text style={{fontWeight: 'bold', fontSize: 16, marginVertical: 15,}}>새로운 기능</Text>
-                            <Text style={{fontSize: 12, marginBottom: 12,}}>{`[버전 : ${appDetailContextState.version} / 업데이트 날짜 : ${appDetailContextState.date}]`}</Text>
+                            <Text style={{fontSize: 12,}}>{`[버전 : ${appDetailContextState.version} / 업데이트 날짜 : ${appDetailContextState.date}]`}</Text>
+                            
+                            
+                            {/* 필요 안드로이드 버전 */}
+                            <View style={{flexDirection: 'row', marginVertical: 3,}}>
+                                <View style={{backgroundColor: '#000000', height: 20, borderRadius: 5, paddingHorizontal: 5, justifyContent: 'center',}} >
+                                    <Text style={{fontWeight: 'bold', fontSize: 10, color: '#ffffff',}}>Android {androidAPItoVersion(appDetailContextState.minimumAndroidSdk)}</Text>
+                                </View>
+                                <View style={{flex: 1}}/>
+                            </View>
+                            
                             <Text>{appLatestUpdateLog}</Text>
                         </View>
 
