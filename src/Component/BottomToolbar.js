@@ -35,8 +35,7 @@ export default function BottomToolbar ({mainScrollViewRef ,scrollCurrentY, scrol
             <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
                 <Pressable style={styles.bottomBarButton}
                     onPressIn={() => {
-                        console.log(scrollCurrentY - scrollDimensionHeight / 2);
-                        mainScrollViewRef.current?.scrollTo({ y: scrollCurrentY - scrollDimensionHeight / 2, animated: false });
+                        mainScrollViewRef.current?.scrollTo({ y: scrollCurrentY - scrollDimensionHeight * 0.6, animated: false });
                     }}
                 >
                     <View>
@@ -48,8 +47,7 @@ export default function BottomToolbar ({mainScrollViewRef ,scrollCurrentY, scrol
             <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
                 <Pressable style={styles.bottomBarButton}
                     onPressIn={() => {
-                        console.log(scrollCurrentY - scrollDimensionHeight / 2);
-                        mainScrollViewRef.current?.scrollTo({ y: scrollCurrentY + scrollDimensionHeight / 2, animated: false });
+                        mainScrollViewRef.current?.scrollTo({ y: scrollCurrentY + scrollDimensionHeight * 0.6, animated: false });
                     }}
                 >
                     <View>
