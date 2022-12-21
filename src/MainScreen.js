@@ -18,6 +18,8 @@ import {
   ToastAndroid,
   PermissionsAndroid,
   BackHandler,
+  TextInput,
+  Keyboard,
 } from 'react-native';
 
 
@@ -36,10 +38,20 @@ import BottomToolbar from './Component/BottomToolbar';
 import AppDetailModal from './Component/AppDetailModal';
 import AppVersionSelectModal, { appVersionSelectContext, initialAppVersionSelectState } from './Component/AppVersionSelectModal';
 
-import { globalContext } from './Component/GlobalContext';
+import { globalContext, useDidMountEffect } from './Component/GlobalContext';
 
 import AppList from './Component/AppList';
 import FloatingButton from './Component/FloatingButton';
+
+import {
+  Menu,
+  MenuProvider,
+  MenuOptions,
+  MenuOption,
+  MenuTrigger,
+  renderers,
+  withMenuContext,
+} from 'react-native-popup-menu';
 
 Text.defaultProps = Text.defaultProps || {};
 Text.defaultProps.allowFontScaling = false;
@@ -65,7 +77,7 @@ const MainScreen = ({navigation, route}) => {
 
 
   const installingPackage = useRef({package: '', version: ''});
-  
+  const deletingPackage = useRef({package: ''});
 
 
   // App Update Available state
@@ -73,12 +85,23 @@ const MainScreen = ({navigation, route}) => {
   const appUpdateUrl = useRef('');
   const [appUpdateHistory, setAppUpdateHistory] = useState('');
 
+  // App Notice Available state
+  const isAppNoticeAvailable = useRef(false);
+  const [appNoticeHistory, setAppNoticeHistory] = useState('');
+
   // AsyncStorage Setting
   const savedAppSetting = useRef({});
   const defaultSetting = {
     updateAlertEnable: true,      // 앱 업데이트 알림 활성화 여부
     version: '',
   };
+  
+  // main screen sub menu Ref
+  const menuRef = useRef();
+
+  // not update list Ref
+  const notNotifyUpdateRef = useRef();
+  
 
   useEffect(() => {
     async function getSavedSetting() {
@@ -92,7 +115,7 @@ const MainScreen = ({navigation, route}) => {
           savedAppSetting.current = defaultSetting;
 
           // 해당 앱의 버전 넣기
-          savedAppSetting.current.version = DeviceInfo.getVersion();;
+          savedAppSetting.current.version = DeviceInfo.getVersion();
 
           await AsyncStorage.setItem('@SEM_SETTING', JSON.stringify(defaultSetting));
           
@@ -109,6 +132,38 @@ const MainScreen = ({navigation, route}) => {
           }
 
         }
+
+        // device info 설정
+        const model = DeviceInfo.getModel();
+        switch (model) {
+        case 'CREMA-0630L':   // CARTA
+        case 'CREMA-0610L':   // SHINE
+        case 'CREMA-0640L':   // SOUND
+        case 'CREMA-0640N':   // SOUND_LINE
+        case 'CREMA-0650L':   // CARTA_PLUS
+        case 'CREMA-0710C':   // CARTA_GRANDE
+        case 'CREMA-1010P':   // EXPERT
+        case 'CREMA-0660L':   // SOUND_UP
+        case 'CREMA-0670C':   // CARTA_G
+          globalContextDispatch({
+            type: 'SET_DEVICE_MODEL',
+            payload: 'crema_old'
+          })
+          break;
+        case 'CREMA-0680S':   // CREMAS
+          globalContextDispatch({
+            type: 'SET_DEVICE_MODEL',
+            payload: 'crema_s'
+          })
+          break;
+        default:
+          globalContextDispatch({
+            type: 'SET_DEVICE_MODEL',
+            payload: 'etc'
+          })
+          break;
+        }
+
       } catch (e) {
         console.log('====AsyncStorage Error : ', e);
         ToastAndroid.show(e, ToastAndroid.SHORT);
@@ -135,10 +190,39 @@ const MainScreen = ({navigation, route}) => {
 
     // 앱 실행 시 AsyncStorage에 AppList를 기반으로 리스트 미리 만들기
     async function makeAppListFirst() {
+
+      await getNotNotifyUpdatePackage();
+
       // AsyncStorage에 앱 리스트 가져오기
       const appList = await AsyncStorage.getItem('@APP_LIST');
 
       if (appList !== null) {
+        const updateJsonPath = `file://${RNFS.CachesDirectoryPath}/update.json`;
+        let updateData;
+        let updateJson;
+
+        try {
+          const isUpdateJsonFileExists = await RNFS.exists(updateJsonPath);
+          if (isUpdateJsonFileExists) {
+            updateData = await RNFS.readFile(updateJsonPath, 'utf8');
+            updateJson = JSON.parse(updateData);
+          } else {
+            console.log ('Exists : update.json is not found.');
+            updateJson = {};
+          }
+
+        } catch (e) {
+          console.log ('Error : update.json is not found. ', e);
+          updateJson = {};
+        }
+
+        // 관리할 앱 리스트를 ref에 저장
+        managedAppList.current = {
+          ...updateJson,
+          app: JSON.parse(appList),
+        };
+        // console.log('managedAppList ::: ', managedAppList.current);
+        console.log('[makeAppListFirst globalContextState.notNotifyUpdatePackage] ', globalContextState.notNotifyUpdatePackage);
         readAppList(JSON.parse(appList));
       }
 
@@ -161,12 +245,23 @@ const MainScreen = ({navigation, route}) => {
   }, [globalContextState.installingPackage]);
 
   useEffect(() => {
+
+    console.log('--------------------------useEffect globalContextState deletingPackage');
+    console.log(JSON.stringify(globalContextState.deletingPackage));
+    deletingPackage.current = globalContextState.deletingPackage;
+
+  }, [globalContextState.deletingPackage]);
+
+
+  useEffect(() => {
     console.log('--------------------------useEffect appVSContextState modalVisible ', appVSContextState.modalVisible);
     isAppVSModalVisable.current = appVSContextState.modalVisible;
   }, [appVSContextState.modalVisible]);
 
 
   const backAction = () => {
+
+
     Alert.alert("종료", "모두의이북을 종료하시겠습니까?", [
       {
         text: "취소",
@@ -205,8 +300,17 @@ const MainScreen = ({navigation, route}) => {
   const [isHeaderEnable, setIsHeaderEnable] = useState(false);
 
 
+  // 검색 텍스트 State
+  const [searchText, setSearchText] = useState('');
+  const searchTextRef = useRef('');
+
+  // 메인 스크롤 활성화, 비활성화
+  const [mainScrollEnable, setMainScrollEnable] = useState(true);
+  // const mainScrollEnable = useRef(false);
+
   // 설치된 앱 리스트 활성화
   const [appUpdateListEnable, setAppUpdateListEnable] = useState(false);
+  const [appNoticeListEnable, setAppNoticeListEnable] = useState(false);
   const [installedAppListEnable, setInstalledAppListEnable] = useState(true);
   const [uninstalledAppListEnable, setUninstalledAppListEnable] = useState(true);
 
@@ -490,77 +594,60 @@ const MainScreen = ({navigation, route}) => {
     setIsAppRefresh(true);
   }
 
-  // 리스트 하단의 새로고침 버튼
-  const RefreshButton = () => {
-    return (
-      <Pressable
-        style={({ pressed }) => [
-          {
-              backgroundColor: pressed
-              ? '#a0a0a0'
-              : 'white'
-          },
-          styles.refreshButton
-        ]}
-        onPress={refreshButtonFunction}
 
-        // 길게 눌러 앱 종료
-        delayLongPress={700}
-        onLongPress={() => {
-          backAction();
-        }}
-      >
-        <Text style={{color: '#000000', fontWeight: 'bold', fontSize: 16}}>새로고침</Text>
-        <Text style={{color: '#000000', fontSize: 10}}>길게 눌러 앱 종료</Text>
-      </Pressable>
-    );
+  // 미설치 앱, 설치 앱 정렬 함수
+  function ascendUninstalledApp(a, b) {
+    // SDK 버전에 충족하지 않은 경우 (설치불가) 최하위로 내림
+    let a_isUpdatable = (a?.is_past_version === true || Platform.Version >= a.minimum_android_sdk) ? true : false;
+    let b_isUpdatable = (b?.is_past_version === true || Platform.Version >= b.minimum_android_sdk) ? true : false;
+    
+    if (a_isUpdatable === b_isUpdatable) {
+      return a.label.toLowerCase() > b.label.toLowerCase() ? 1 : a.label.toLowerCase() < b.label.toLowerCase() ? -1 : 0;
+    } else if (a_isUpdatable) {
+      return -1;
+    } else if (b_isUpdatable) {
+      return 1;
+    } else {
+      return 0;
+    }
+
   }
 
+  function ascendInstalledApp(a, b) {
+    // SDK 버전에 충족하고, 업데이트가 있으면 리스트 최상위로 올림
+    const a_isNotNotify = notNotifyUpdateRef.current !== null ? notNotifyUpdateRef.current.filter((item2) => {
+      return item2 == a.package
+    }) : [];
+
+    const b_isNotNotify = notNotifyUpdateRef.current !== null ? notNotifyUpdateRef.current.filter((item2) => {
+      return item2 == b.package
+    }) : [];
+
+    // console.log(`[ascendInstalledApp] ${a.package} a_isNotNotify : ${a_isNotNotify.length}, ${b.package} b_isNotNotify : ${b_isNotNotify.length}`);
+
+    const a_newVersion = a.versionName.toUpperCase().includes('PATCH_V') ? a.patch_info.version : a.version;
+    const b_newVersion = b.versionName.toUpperCase().includes('PATCH_V') ? b.patch_info.version : b.version;
+
+    let a_isUpdated = (a_isNotNotify.length === 0 && !a?.is_past_version_installed && a.versionName !== a_newVersion && a.is_update_target && Platform.Version >= a.minimum_android_sdk) ? true : false;
+    let b_isUpdated = (b_isNotNotify.length === 0 && !b?.is_past_version_installed && b.versionName !== b_newVersion && b.is_update_target && Platform.Version >= b.minimum_android_sdk) ? true : false;
+
+    // console.log(`[ascendInstalledApp] ${a.package} a_isUpdated : ${a_isUpdated}, ${b.package} b_isUpdated : ${b_isUpdated}`);
+    // console.log(`[ascendInstalledApp] ${a.label.toLowerCase() > b.label.toLowerCase()} ${a.label.toLowerCase() < b.label.toLowerCase()}, ${a.label.toLowerCase() == b.label.toLowerCase()}\n`);
+    if (a_isUpdated === b_isUpdated) {
+      return a.label.toLowerCase() > b.label.toLowerCase() ? 1 : a.label.toLowerCase() < b.label.toLowerCase() ? -1 : 0;
+    } else if (a_isUpdated) {
+      return -1;
+    } else if (b_isUpdated) {
+      return 1;
+    } else {
+      return 0;
+    }
+    
+  }
 
 
   // 기기에 설치된 앱 리스트를 가져온다
   const readAppList = async (appList) => {
-    
-    function ascend(a, b) {
-      return a.label.toLowerCase() > b.label.toLowerCase() ? 1 : a.label.toLowerCase() < b.label.toLowerCase() ? -1 : 0;
-    }
-
-
-    function ascendUninstalledApp(a, b) {
-      // SDK 버전에 충족하지 않은 경우 (설치불가) 최하위로 내림
-      let a_isUpdatable = (a?.is_past_version === true || Platform.Version >= a.minimum_android_sdk) ? true : false;
-      let b_isUpdatable = (b?.is_past_version === true || Platform.Version >= b.minimum_android_sdk) ? true : false;
-      
-      if (a_isUpdatable === b_isUpdatable) {
-        return a.label.toLowerCase() > b.label.toLowerCase() ? 1 : a.label.toLowerCase() < b.label.toLowerCase() ? -1 : 0;
-      } else if (a_isUpdatable) {
-        return -1;
-      } else if (b_isUpdatable) {
-        return 1;
-      } else {
-        return 0;
-      }
-
-    }
-
-    function ascendInstalledApp(a, b) {
-      
-      // SDK 버전에 충족하고, 업데이트가 있으면 리스트 최상위로 올림
-      let a_isUpdated = (!a?.is_past_version_installed && a.versionName !== a.version && a.is_update_target && Platform.Version >= a.minimum_android_sdk) ? true : false;
-      let b_isUpdated = (!b?.is_past_version_installed && b.versionName !== b.version && b.is_update_target && Platform.Version >= b.minimum_android_sdk) ? true : false;
-
-      if (a_isUpdated === b_isUpdated) {
-        return a.label.toLowerCase() > b.label.toLowerCase() ? 1 : a.label.toLowerCase() < b.label.toLowerCase() ? -1 : 0;
-      } else if (a_isUpdated) {
-        return -1;
-      } else if (b_isUpdated) {
-        return 1;
-      } else {
-        return 0;
-      }
-      
-    }
-
 
     const temp = await NativeModules.InstalledApps.getApps();
     console.log(temp);
@@ -569,7 +656,6 @@ const MainScreen = ({navigation, route}) => {
     // console.log('Installed App List : ', tempAllApps.length);
     // console.log('appList : ', JSON.stringify(appList));
     // console.log('tempAllApps : ', JSON.stringify(tempAllApps));
-
 
     let installedApps = new Array();
     appList.filter((item) => {
@@ -581,11 +667,8 @@ const MainScreen = ({navigation, route}) => {
 
         // is_past_version이 true이고 past_version_list에서 현재 설치된 버전과 일치하는 경우 -> is_past_version_installed : true
         if (item?.is_past_version !== undefined && item.is_past_version && item?.past_version_list?.version_list !== undefined) {
-
-          console.log('ffffffffffffffffffffff :: ', item?.past_version_list?.version_list);
-
           const result2 = item?.past_version_list?.version_list?.filter((item2) => item2?.version === result[0].versionName);
-          console.log('ffffffffffffffffffffff  result length :: ', result2.length)
+
           if (result2.length > 0) {
             console.log(`[${item.package}] past version installed`);
             is_past_version_installed = true;
@@ -603,11 +686,58 @@ const MainScreen = ({navigation, route}) => {
     console.log('installedApps : ', installedApps.length);
     console.log('uninstalledApps : ', uninstalledApps.length);
 
-    setUninstalledAppList(uninstalledApps);
-    // if (installedApps.length > 0) setInstalledAppList(installedApps);
-    setInstalledAppList(installedApps);
+    uninstalledAppListRef.current = uninstalledApps;
+    installedAppListRef.current = installedApps;
+
+    searchApp(searchText);
     
   }
+
+  // 앱 별 업데이트 알림 체크, 리스트 정렬 방식 최신화
+
+  async function getNotNotifyUpdatePackage () {
+    // global context에 값이 없을 경우 (앱 실행 초기) AsyncStorage에서 데이터 가져옴
+    console.log('[globalContextState.notNotifyUpdatePackage] : ', globalContextState.notNotifyUpdatePackage?.length);
+    if (globalContextState.notNotifyUpdatePackage == null) {
+      console.log('[globalContextState.notNotifyUpdatePackage] initialize');
+      try {
+        // AsyncStorage에 앱 리스트 가져오기
+        let notNotifyList = await AsyncStorage.getItem('@NOT_NOTIFY_UPDATE_LIST');
+
+        console.log('notNotifyList : ', notNotifyList);
+        if (notNotifyList == null) {
+          notNotifyList = '[]';
+        }
+
+        // 업데이트 알리지 않음 기록
+        globalContextDispatch({
+          type: 'SET_NOT_NOTIFY_UPDATE_PACKAGE',
+          payload: JSON.parse(notNotifyList)
+        });
+
+        // Ref
+        notNotifyUpdateRef.current = JSON.parse(notNotifyList);
+
+      } catch (e) {
+        console.log('globalContextState.notNotifyUpdatePackage error : ', e);
+      }
+
+    } else {
+      // 변경 사항 발생 -> installedAppListRef 정렬 -> searchApp(searchText)
+      notNotifyUpdateRef.current = globalContextState.notNotifyUpdatePackage;
+      // AsyncStorage 저장
+      await AsyncStorage.setItem('@NOT_NOTIFY_UPDATE_LIST', JSON.stringify(globalContextState.notNotifyUpdatePackage));
+      console.log('[globalContextState.notNotifyUpdatePackage] asyncStorage save');
+    }
+    installedAppListRef.current = installedAppListRef.current.sort(ascendInstalledApp);
+    console.log('[globalContextState.notNotifyUpdatePackage] installedAppListRef sort');
+    searchApp(searchText);
+  }
+  
+  useDidMountEffect(() => {
+    console.log('[useDidMountEffect] getNotNotifyUpdatePackage');
+    getNotNotifyUpdatePackage();
+  }, [globalContextState.notNotifyUpdatePackage]);
 
 
   useEffect(() => {
@@ -619,10 +749,46 @@ const MainScreen = ({navigation, route}) => {
     }
   }, [isInternetReachable]);
 
-  // 앱 새로고침
+
+  // 설치된 앱, 미설치 앱 리스트 (화면 리스트 노출용)
   const [uninstalledAppList, setUninstalledAppList] = useState([]);
   const [installedAppList, setInstalledAppList] = useState([]);
 
+  // 설치된 앱, 미설치 앱 리스트
+  const uninstalledAppListRef = useRef([]);
+  const installedAppListRef = useRef([]);
+
+
+  // =========================================
+  // 앱 검색
+  // =========================================
+  const searchApp = (text) => {
+    // text가 없을 경우 -> 전체 리스트 보여주기
+    console.log('searchApp ::: ', text);
+    if (text.length === 0) {
+      setUninstalledAppList(uninstalledAppListRef.current);
+      setInstalledAppList(installedAppListRef.current);
+      return;
+    }
+
+    const filteredUninstalledAppList = uninstalledAppListRef.current.filter((item) => {
+      return item.label.toUpperCase().includes(text.toUpperCase());
+    });
+    const filteredInstalledAppList = installedAppListRef.current.filter((item) => {
+      return item.label.toUpperCase().includes(text.toUpperCase());
+    });
+
+    setUninstalledAppList(filteredUninstalledAppList);
+    setInstalledAppList(filteredInstalledAppList);
+
+  }
+
+  // useEffect(() => {
+  //   searchApp(searchText);
+  // }, [searchText]);
+
+
+  // 앱 새로고침
   async function appRefresh () {      
     if (!isAppRefresh) return;
 
@@ -639,6 +805,13 @@ const MainScreen = ({navigation, route}) => {
       
 
       let jobId = -1;
+
+      // AsyncStorage 에 저장된 공지사항 불러오기
+      const latestNoticeData = await AsyncStorage.getItem('@NOTICE');
+      let latestNotice = null;
+      if (latestNoticeData != null) {
+        latestNotice = JSON.parse(latestNoticeData);
+      }
 
 
       // download update.json
@@ -682,6 +855,14 @@ const MainScreen = ({navigation, route}) => {
           setIsAppRefresh(false);
         }, 3000);
 
+        // 이전의 공지사항을 메인화면에 띄우기
+        if (latestNotice != null) {
+          isAppNoticeAvailable.current = true;
+          setAppNoticeHistory(latestNotice.context);
+          setAppNoticeListEnable(true);
+        }
+
+
         console.log('====== timeout :');
       }, 30000);
       
@@ -701,6 +882,24 @@ const MainScreen = ({navigation, route}) => {
             setNowDownloadJobId(res.jobId);
           } else {
             ToastAndroid.show('새로고침에 실패했습니다. 잠시 후 다시 시도하세요.', ToastAndroid.SHORT);
+            setRefreshText('새로고침 실패, 네트워크 환경을 확인하세요.');
+
+            globalContextDispatch({
+              type: 'SET_REFRESH_STATE',
+              payload: false
+            });
+    
+            // 3초 뒤에 해더 제거
+            setTimeout(() => {
+              setIsAppRefresh(false);
+            }, 3000);
+    
+            // 이전의 공지사항을 메인화면에 띄우기
+            if (latestNotice != null) {
+              isAppNoticeAvailable.current = true;
+              setAppNoticeHistory(latestNotice.context);
+              setAppNoticeListEnable(true);
+            }
           }
           
         },
@@ -742,6 +941,48 @@ const MainScreen = ({navigation, route}) => {
           const updateData = JSON.parse(await RNFS.readFile(downloadfilePath, 'utf8'));
           
           // console.log('update Data ::: ', JSON.stringify(updateData));
+
+          // 앱 공지사항 유무 확인
+          if (updateData?.notice) {
+            if (updateData.notice.id === 0 || updateData.notice.context === '') {
+              // notice id 0 : 기존 공지 ID 삭제
+              isAppNoticeAvailable.current = false;
+              setAppNoticeHistory('');
+
+              await AsyncStorage.removeItem('@NOTICE');
+            } else {
+
+              isAppNoticeAvailable.current = true;
+              setAppNoticeHistory(updateData.notice.context);
+
+              if (latestNotice == null || updateData.notice.id !== latestNotice.id) {
+                // 기존 공지 ID가 없을 경우 : Alert으로 공지 띄우기
+                try {
+                  await AsyncStorage.setItem('@NOTICE', JSON.stringify(updateData.notice));
+
+                  const choice = await AlertAsync(
+                    '공지사항',
+                    updateData?.notice.context,
+                    [
+                      {text: '확인', onPress: () => 'yes'},
+                    ],
+                    {
+                      cancelable: true,
+                      onDismiss: () => 'yes',
+                    },
+                  );
+    
+                  console.log('notice end : ', choice);
+    
+                } catch (e) {
+                  // 앱 종료
+                  RNExitApp.exitApp();
+                }
+              }
+            }
+            
+            
+          }
 
           // 앱 업데이트 유무 확인
           if (updateData.update_version !== DeviceInfo.getVersion()) {
@@ -813,7 +1054,6 @@ const MainScreen = ({navigation, route}) => {
             isAppUpdateAvailable.current = true;
             appUpdateUrl.current = updateData.update_url;
             setAppUpdateHistory(updateData.update_history);
-
           }
           
 
@@ -821,7 +1061,7 @@ const MainScreen = ({navigation, route}) => {
           const appList = updateData.app;
           const appListLength = appList.length;
 
-
+          // const savedAppList = await AsyncStorage.getItem('@APP_LIST');
 
           // 2022.11.07 promise.all 로 변경 (검증 필요)
           const appTaskPromise = [];
@@ -836,15 +1076,17 @@ const MainScreen = ({navigation, route}) => {
             // 2022.11.07 promise.all 로 변경
             const promise = new Promise(async function(resolve, reject) {
 
-              // setRefreshProgressBar((index+1) / appListLength * 100);
-              console.log(`${index} : ${value.package}`);
-              const iconPath = `file://${RNFS.DocumentDirectoryPath}/${value.package}/ic_launcher.png`;
-              const iconExist = await RNFS.exists(iconPath);
-              console.log('icon path : ', iconPath);
-              console.log('file exists : ', iconExist);
-              if (!iconExist) {
-                try {
 
+              try {
+                // setRefreshProgressBar((index+1) / appListLength * 100);
+                console.log(`${index} : ${value.package}`);
+                const iconPath = `file://${RNFS.DocumentDirectoryPath}/${value.package}/ic_launcher.png`;
+                const iconExist = await RNFS.exists(iconPath);
+                console.log('icon path : ', iconPath);
+                console.log('file exists : ', iconExist);
+                
+                if (!iconExist) {
+                  
                   await RNFS.mkdir(`file://${RNFS.DocumentDirectoryPath}/${value.package}/`);
                   console.log ('download icon :: ', value.icon_url);
 
@@ -866,11 +1108,10 @@ const MainScreen = ({navigation, route}) => {
                       uri: iconPath,
                     }]);
                   }
-
-                } catch (e) {
-                  console.log ('for of error : ', e);
-                  reject(e);
                 }
+              } catch (e) {
+                console.log ('for of error : ', e);
+                reject(e);
               }
 
               // update history 처리
@@ -990,7 +1231,7 @@ const MainScreen = ({navigation, route}) => {
                   let savedPackageObjTemp = savedPackageObj;
                   delete savedPackageObjTemp.past_version_list;
                   appList[index].update_history_contents = savedPackageObjTemp;
-                  console.log('[asyncstorage] use update history :: ', JSON.stringify(savedPackageObjTemp));
+                  console.log('[asyncstorage] use update history : ', value.package);
                 }
 
 
@@ -1082,7 +1323,6 @@ const MainScreen = ({navigation, route}) => {
           await AsyncStorage.setItem('@APP_LIST', JSON.stringify(appList));
 
           // 관리할 앱 리스트를 ref에 저장
-
           managedAppList.current = {
             ...updateData,
             app: appList,
@@ -1114,6 +1354,13 @@ const MainScreen = ({navigation, route}) => {
         payload: false
       });
 
+      // 이전의 공지사항을 메인화면에 띄우기
+      if (latestNotice != null) {
+        isAppNoticeAvailable.current = true;
+        setAppNoticeHistory(latestNotice.context);
+        setAppNoticeListEnable(true);
+      }
+
       setIsAppRefresh(false);
     }
   }
@@ -1125,7 +1372,8 @@ const MainScreen = ({navigation, route}) => {
 
 
 
-  const [scrollDimensionHeight, setScrollDimensionHeight] = useState(0);
+  // const [scrollDimensionHeight, setScrollDimensionHeight] = useState(0);
+  const scrollDimensionHeight = useRef(0);
   const [scrollCurrentY, setScrollCurrentY] = useState(0);
 
   const handleScroll = (event) => {
@@ -1135,8 +1383,8 @@ const MainScreen = ({navigation, route}) => {
   }
 
   const handleScrollLayout = (event) => {
-    setScrollDimensionHeight(event.nativeEvent.layout.height);
-    // scrollDimensionHeight = event.nativeEvent.layout.height;
+    // setScrollDimensionHeight(event.nativeEvent.layout.height);
+    scrollDimensionHeight.current = event.nativeEvent.layout.height;
     console.log('event nativeEvent layout');
     console.log(event.nativeEvent.layout);
   }
@@ -1162,12 +1410,23 @@ const MainScreen = ({navigation, route}) => {
       console.log('-----App has come to the foreground!');
       console.log('appVSContextState.modalVisible ::: ', appVSContextState);
 
-      const checkApp = installingPackage.current;
-      // readAppList(managedAppList.app);
 
-      // 인스톨 상태인지 확인
-      if (checkApp.package.length > 0) {
-        console.log('app install detected. ', JSON.stringify(checkApp));
+      // 앱이 인스톨 상태인지 언인스톨 상태인지 체크
+      let checkApp;
+      let checkAppState = '';
+      if (installingPackage.current.package.length > 0) {
+        checkApp = installingPackage.current;
+        checkAppState = 'INSTALL';
+      } else if (deletingPackage.current.package.length > 0) {
+        checkApp = deletingPackage.current;
+        checkAppState = 'DELETE';
+      } else {
+        checkAppState = 'NONE';
+      }
+      
+
+      if (checkAppState !== 'NONE') {
+        console.log(`app ${checkAppState} detected. ${JSON.stringify(checkApp)}`);
 
         try {
           // update apk 파일이 이미 있는 경우 삭제
@@ -1184,144 +1443,129 @@ const MainScreen = ({navigation, route}) => {
           console.log('handleAppStateChange : temp apk check error === ', e);
         }
 
-
         // 설치된 앱 목록 재확인
         let isInstallSuccess = false;
         let installAppLabel = '';
 
-        function ascend(a, b) {
-          return a.label.toLowerCase() > b.label.toLowerCase() ? 1 : a.label.toLowerCase() < b.label.toLowerCase() ? -1 : 0;
-        }
+        try {
+          console.log('managedAppList ::: ', managedAppList.current.app);
 
-        function ascendUninstalledApp(a, b) {
-          // SDK 버전에 충족하지 않은 경우 (설치불가) 최하위로 내림
-          let a_isUpdatable = (a?.is_past_version === true || Platform.Version >= a.minimum_android_sdk) ? true : false;
-          let b_isUpdatable = (b?.is_past_version === true || Platform.Version >= b.minimum_android_sdk) ? true : false;
-          
-          if (a_isUpdatable === b_isUpdatable) {
-            return a.label.toLowerCase() > b.label.toLowerCase() ? 1 : a.label.toLowerCase() < b.label.toLowerCase() ? -1 : 0;
-          } else if (a_isUpdatable) {
-            return -1;
-          } else if (b_isUpdatable) {
-            return 1;
-          } else {
-            return 0;
-          }
+          const temp = await NativeModules.InstalledApps.getApps();
+      
+          let tempAllApps = JSON.parse(temp);
 
-        }
+          let installedApps = new Array();
+          managedAppList.current.app.filter((item) => {
+            const result = tempAllApps.filter((i) => i.name === item.package);
+            let is_past_version_installed = false;
 
-        function ascendInstalledApp(a, b) {
-          
-          // SDK 버전에 충족하고, 업데이트가 있으면 리스트 최상위로 올림
-          
-          let a_isUpdated = (!a?.is_past_version_installed && a.versionName !== a.version && a.is_update_target && Platform.Version >= a.minimum_android_sdk) ? true : false;
-          let b_isUpdated = (!b?.is_past_version_installed && b.versionName !== b.version && b.is_update_target && Platform.Version >= b.minimum_android_sdk) ? true : false;
+            if (result.length > 0 && item.package === result[0].name) {
 
-          if (a_isUpdated === b_isUpdated) {
-            return a.label.toLowerCase() > b.label.toLowerCase() ? 1 : a.label.toLowerCase() < b.label.toLowerCase() ? -1 : 0;
-          } else if (a_isUpdated) {
-            return -1;
-          } else if (b_isUpdated) {
-            return 1;
-          } else {
-            return 0;
-          }
-          
-        }
+              // is_past_version이 true이고 past_version_list에서 현재 설치된 버전과 일치하는 경우 -> is_past_version_installed : true
+              if (item?.is_past_version !== undefined && item.is_past_version && item?.past_version_list?.version_list !== undefined) {
+                const result2 = item?.past_version_list?.version_list?.filter((item2) => item2?.version === result[0].versionName);
 
-        const temp = await NativeModules.InstalledApps.getApps();
-    
-        let tempAllApps = JSON.parse(temp);
-    
-        let installedApps = new Array();
-        managedAppList.current.app.filter((item) => {
-          const result = tempAllApps.filter((i) => i.name === item.package);
-    
-          let is_past_version_installed = false;
-
-          if (result.length > 0 && item.package === result[0].name) {
-
-            // is_past_version이 true이고 past_version_list에서 현재 설치된 버전과 일치하는 경우 -> is_past_version_installed : true
-            if (item?.is_past_version !== undefined && item.is_past_version && item?.past_version_list?.version_list !== undefined) {
-    
-              console.log('2ffffffffffffffffffffff :: ', item?.past_version_list?.version_list);
-
-              const result2 = item?.past_version_list?.version_list?.filter((item2) => item2?.version === result[0].versionName);
-              console.log('ssssssssssssssss  result length :: ', result2.length)
-              if (result2.length > 0) {
-                console.log(`[${item.package}] past version installed`);
-                is_past_version_installed = true;
+                if (result2.length > 0) {
+                  console.log(`[${item.package}] past version installed`);
+                  is_past_version_installed = true;
+                }
               }
-            }
 
-            installedApps.push({...item, versionName: result[0].versionName, versionCode: result[0].versionCode, is_past_version_installed: is_past_version_installed});
+              installedApps.push({...item, versionName: result[0].versionName, versionCode: result[0].versionCode, is_past_version_installed: is_past_version_installed});
 
-            // 설치되었는지 확인
-            if (item.package == checkApp.package && 
-                result[0].versionName == checkApp.version) {
+              // 설치되었는지 확인
+              if (checkAppState === 'INSTALL' &&
+                  item.package == checkApp.package && 
+                  result[0].versionName == checkApp.version) {
                 console.log ('install success');
                 isInstallSuccess = true;
                 installAppLabel = item.label;
+              }
             }
+          });
+
+      
+          let uninstalledApps = managedAppList.current.app.filter((item) => !installedApps.some((i) => i?.package === item.package)).sort(ascendUninstalledApp);
+      
+          installedApps.sort(ascendInstalledApp);
+      
+
+          console.log('installedApps : ', installedApps.length);
+          console.log('uninstalledApps : ', uninstalledApps.length);
+      
+
+          uninstalledAppListRef.current = uninstalledApps;
+          installedAppListRef.current = installedApps;
+
+          console.log(searchTextRef.current);
+          searchApp(searchTextRef.current);
+
+          if (isInstallSuccess) {
+            console.log('app install success.');
+
+            if (checkAppState === 'INSTALL') {
+              ToastAndroid.show(`${installAppLabel}\n앱을 설치했습니다.`, ToastAndroid.LONG);
+
+              // AppVersionSelectModal이 켜진 상태 -> 모달 초기화 
+              console.log('isAppVSModalVisable.current ::: ', isAppVSModalVisable.current);
+              if (isAppVSModalVisable.current) {
+                console.log('===== appVS Modal reset!!!');
+                appVSContextDispatch({
+                  type: 'INIT_APP_VERSION_LIST',
+                  payload: initialAppVersionSelectState,
+                });
+              }
+
+            } else if (checkAppState === 'DELETE') {
+              ToastAndroid.show(`${installAppLabel}\n앱이 삭제되지 않았습니다.`, ToastAndroid.LONG);
+            }
+            
+
+            // 마지막으로 설치한 앱으로 기록
+            // globalContextDispatch({
+            //   type: 'SET_LATEST_INSTALLED_PACKAGE',
+            //   payload: {
+            //     package: globalContextState.installingPackage.package,
+            //     version: globalContextState.installingPackage.version,
+            //   }
+            // });
+
+          } else {
+            console.log('app install failed.');
+
+            if (checkAppState === 'INSTALL') {
+              ToastAndroid.show(`앱이 설치되지 않았습니다.`, ToastAndroid.LONG);
+              console.log(checkApp.latestActionButtonText);
+              // Action Button text를 이전 내용으로 되돌리기
+              checkApp.setActionButtonText(checkApp.latestActionButtonText);
+            
+            } 
+
           }
-        });
 
-    
-        let uninstalledApps = managedAppList.current.app.filter((item) => !installedApps.some((i) => i?.package === item.package)).sort(ascendUninstalledApp);
-    
-        installedApps.sort(ascendInstalledApp);
-    
-
-        console.log('installedApps : ', installedApps.length);
-        console.log('uninstalledApps : ', uninstalledApps.length);
-    
-        setUninstalledAppList(uninstalledApps);
-        // if (installedApps.length > 0) setInstalledAppList(installedApps);
-        setInstalledAppList(installedApps);
-
-        if (isInstallSuccess) {
-          console.log('app install success.');
-          ToastAndroid.show(`${installAppLabel}\n앱을 설치했습니다.`, ToastAndroid.LONG);
+          // 인스톨 패키지 초기화
+          globalContextDispatch({
+            type: 'SET_INSTALLING_PACKAGE',
+            payload: {
+              package: '',
+              version: '',
+              setActionButtonText: null,
+              latestActionButtonText: '',
+            }
+          });
 
 
-          // AppVersionSelectModal이 켜진 상태 -> 모달 초기화 
-          console.log('isAppVSModalVisable.current ::: ', isAppVSModalVisable.current);
-          if (isAppVSModalVisable.current) {
-            console.log('===== appVS Modal reset!!!');
-            appVSContextDispatch({
-              type: 'INIT_APP_VERSION_LIST',
-              payload: initialAppVersionSelectState,
-            });
-          }
-
-          // 마지막으로 설치한 앱으로 기록
-          // globalContextDispatch({
-          //   type: 'SET_LATEST_INSTALLED_PACKAGE',
-          //   payload: {
-          //     package: globalContextState.installingPackage.package,
-          //     version: globalContextState.installingPackage.version,
-          //   }
-          // });
-
-        } else {
-          console.log('app install failed.');
-          ToastAndroid.show(`앱이 설치되지 않았습니다.`, ToastAndroid.LONG);
-          console.log(checkApp.latestActionButtonText);
-          // Action Button text를 이전 내용으로 되돌리기
-          checkApp.setActionButtonText(checkApp.latestActionButtonText);
-          
+          // 언인스톨 패키지 초기화
+          globalContextDispatch({
+            type: 'SET_DELETING_PACKAGE',
+            payload: {
+              package: '',
+            }
+          });
+        
+        } catch (e) {
+          console.log('ERROR TRYCATCH : ', e);
         }
-
-        // 인스톨 패키지 초기화
-        globalContextDispatch({
-          type: 'SET_INSTALLING_PACKAGE',
-          payload: {
-            package: '',
-            version: '',
-            setActionButtonText: null,
-            latestActionButtonText: '',
-          }
-        });
         
       }
     }
@@ -1337,19 +1581,167 @@ const MainScreen = ({navigation, route}) => {
 
 
 
+  // 최상단 검색바 오른쪽의 메뉴 버튼 Component
+  const MenuButtonComponent = (onPress, onLongPress, styles = {}) => {
+    return (
+      <Pressable
+        style={styles}
+        onPress={onPress}
+        delayLongPress={500}
+        onLongPress={onLongPress}
+      >
+        <MaterialIcons name={'menu'} color={'#000000'} size={21} />
+      </Pressable>
+      
+    );
+  }
+
 
 
 
   return (
     <SafeAreaView style={styles.body}>
-      <StatusBar barStyle='dark-content' nbackgroundColor={'white'} animated={false} />
+      <StatusBar barStyle='dark-content' backgroundColor={'white'} animated={false} />
       <ScrollView
         style={styles.scrollView}
         ref={mainScrollViewRef}
         onScroll={handleScroll}
         onLayout={handleScrollLayout}
+        scrollEnabled={mainScrollEnable}
       >
-        <View style={{height: 12}} />
+        {/* 검색 영역 */}
+        <View style={styles.searchView}>
+          <View style={{
+            borderColor: '#000000', 
+            borderWidth: 1.7, 
+            borderRadius: 5, 
+            width: '100%', 
+            height: 45, 
+            flexDirection: 'row', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+          }}>
+            <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', flex: 1, marginLeft: 4,}}>
+              <View style={{height: '100%', borderRightWidth: 0, borderRightColor: '#000000',}}>
+                <MaterialIcons name={'search'} color={'#000000'} size={21} />
+              </View>
+              <View style={{marginLeft: 0, marginRight: 5, flex: 1,}}>
+                {/* TextInput Area */}
+                <TextInput
+                  editable={globalContextState.nowDownloadJobId != -1 ? false : true}
+                  placeholder={'앱 검색...'}
+                  style={styles.searchInput}
+                  // selectTextOnFocus={true}
+                  // onChangeText={text=>setSearchText(text)}
+                  value={searchText}
+                  onChangeText={(text) => {
+                    console.log('onChangeText :', text);
+                    setSearchText(text);
+                    searchTextRef.current = text;
+                    searchApp(text);
+                  }}
+                  numberOfLines={1}
+                  onFocus={()=>{console.log('focused');}}
+                  keyboardType={'default'}
+                  underlineColorAndroid={'transparent'}
+                />
+              </View>
+
+              {
+                searchText.length > 0 && (
+                  <Pressable
+                    style={{
+                      marginLeft: -5,
+                      width: 35,
+                      height: 45,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      // backgroundColor: '#a0a0a0',
+                    }}
+                    onPress={() => {
+                      if (globalContextState.nowDownloadJobId != -1) {
+                        ToastAndroid.show('앱의 다운로드가 끝나고 시도하세요.', ToastAndroid.SHORT);
+                      } else {
+                        Keyboard.dismiss();
+                        setSearchText('');
+                        searchTextRef.current = '';
+                        searchApp('');
+                      }
+
+                    }}
+                  >
+                    <MaterialIcons name={'cancel'} color={'#808080'} size={21} />
+                  </Pressable>
+                )
+              }
+            </View>
+            <View style={{height: '100%', borderLeftWidth: 1, borderLeftColor: '#000000', justifyContent: 'center',}}>
+              {/* <MaterialIcons name={'menu'} color={'#000000'} size={21} /> */}
+              <Menu ref={menuRef} renderer={renderers.NotAnimatedContextMenu} >
+                <MenuTrigger             
+                  customStyles={{
+                    // TriggerTouchableComponent: MenuButtonComponent,
+                    TriggerTouchableComponent: MaterialIcons.Button,
+                    triggerTouchable: { 
+                      name: 'menu', 
+                      color: '#000000', 
+                      backgroundColor: 'rgba(0, 0, 0, 0)', 
+                      size: 21, 
+                      iconStyle: { marginRight: 0, marginVertical: 4, } ,
+                      underlayColor: 'rgba(0, 0, 0, 0)', 
+                    },
+                  }}
+                />
+                <MenuOptions customStyles={optionsStyles}>
+                  <MenuOption 
+                    text='종료'
+                    disabled={false}
+                    onSelect={async() => {
+                      await menuRef.current.close();
+                      backAction();
+                    }}
+                  />
+                  <MenuOption 
+                    text='초기화'
+                    disabled={false}
+                    onSelect={async() => {
+                      await menuRef.current.close();
+                      resetApp();
+                    }}
+                  />
+                  <MenuOption 
+                    text='Github 사이트 방문'
+                    disabled={false}
+                    onSelect={async () => {
+                      await menuRef.current.close();
+                      // github 사이트 열기
+                      const result = Linking.canOpenURL(githubPage);
+        
+                      if (result) {
+                        Linking.openURL(githubPage);
+                      } else {
+                        ToastAndroid.show('웹 페이지를 열 수 없습니다.', ToastAndroid.SHORT);
+                      }
+                    }}
+                  />
+                  <View style={{width: '100%', borderTopColor: '#a0a0a0', borderTopWidth: 1,}} />
+                  <MenuOption
+                    text='오픈소스 라이선스'
+                    disabled={false}
+                    onSelect={async () => {
+                      await menuRef.current.close();
+                      navigation.navigate("OSSLicenseStack");
+                    }}
+                  />
+                </MenuOptions>
+
+              </Menu>
+
+
+            </View>
+          </View>
+
+        </View>
         {
           // 앱 업데이트 있을 경우 표시
           isAppUpdateAvailable.current && (
@@ -1407,8 +1799,44 @@ const MainScreen = ({navigation, route}) => {
                 }} >{appUpdateHistory}</Text>
               )
             }
-
-            
+            <View style={{marginTop: 5, marginBottom: 10, borderTopColor: '#000000', borderTopWidth: 0.5, }} />
+            </>
+          )
+        }
+        {
+          // 앱 공지사항 있을 경우 표시
+          isAppNoticeAvailable.current && (
+            <>
+            <View style={styles.title}>
+              <Text style={styles.titleText}>공지사항</Text>
+              <View style={{marginRight: 5, flexDirection: 'row', justifyContent: 'center', alignItems: 'center',}}>
+                {/* 공지사항 내역 확장 버튼 */}
+                <Pressable 
+                  style={({ pressed }) => [
+                    {
+                      backgroundColor: pressed
+                        ? '#a0a0a0'
+                        : 'white'
+                    }
+                  ]}
+                  onPress={() => {
+                    console.log('ok');
+                    setAppNoticeListEnable(!appNoticeListEnable);
+                  }}
+                >
+                  <MaterialIcons name={appNoticeListEnable ? 'keyboard-arrow-up' : 'keyboard-arrow-down'} color={'#000000'} size={45} />
+                </Pressable>
+              </View>
+            </View>
+            {
+              appNoticeListEnable && (
+                <Text style={{
+                  marginHorizontal: 20,
+                  fontSize: 14,
+                  marginBottom: 10,
+                }} >{appNoticeHistory}</Text>
+              )
+            }
             <View style={{marginTop: 5, marginBottom: 10, borderTopColor: '#000000', borderTopWidth: 0.5, }} />
             </>
           )
@@ -1442,7 +1870,7 @@ const MainScreen = ({navigation, route}) => {
             installedAppListEnable && 
             (
               <>
-                <AppList item={installedAppList}/>
+                <AppList items={installedAppList} scrollEnable={setMainScrollEnable} />
                 <View style={{height: 20}} />
               </>
             )
@@ -1473,40 +1901,39 @@ const MainScreen = ({navigation, route}) => {
             </Pressable>
           </View>
         </View>
-        { uninstalledAppListEnable && (<AppList item={uninstalledAppList}/>) }
+        { uninstalledAppListEnable && (<AppList items={uninstalledAppList} scrollEnable={setMainScrollEnable}/>) }
 
         {/* 새로고침 버튼 */}
         {/* <RefreshButton /> */}
 
         {/* 모두의이북 정보 */}
 
-        <View style={{alignItems: 'center', marginBottom: 15,}}>
+        <View style={{alignItems: 'center', justifyContent: 'center', marginBottom: 15, height: 65,}}>
           <Pressable
             style={{alignItems: 'center', paddingVertical: 5, }}
             onPress={async () => {
               // github 사이트 열기
-              const result = Linking.canOpenURL(githubPage);
+              // const result = Linking.canOpenURL(githubPage);
 
-              if (result) {
-                Linking.openURL(githubPage);
-              } else {
-                ToastAndroid.show('웹 페이지를 열 수 없습니다.', ToastAndroid.SHORT);
-              }
+              // if (result) {
+              //   Linking.openURL(githubPage);
+              // } else {
+              //   ToastAndroid.show('웹 페이지를 열 수 없습니다.', ToastAndroid.SHORT);
+              // }
             }}
     
             // 길게 눌러 앱 초기화
-            delayLongPress={1500}
-            onLongPress={() => {
-              resetApp();
-            }}
+            // delayLongPress={1500}
+            // onLongPress={() => {
+            //   resetApp();
+            // }}
           >
             <Text style={{fontSize: 12, color: '#000000', fontWeight: 'bold'}} >모 두 의 이 북  v{DeviceInfo.getVersion()}</Text>
-            {/* <Text style={{fontSize: 10, color: '#000000',}}>{DeviceInfo.getVersion()}</Text> */}
             <Text style={{fontSize: 11, color: '#000000',}}>{githubPage}</Text>
           </Pressable>
 
           {/* 오픈소스 라이선스 표기 */}
-          <Pressable
+          {/* <Pressable
             style={{alignItems: 'center', paddingVertical: 5, paddingHorizontal: 10, backgroundColor: '#ffffff',}}
             onPress={() => {
               navigation.navigate("OSSLicenseStack");
@@ -1516,13 +1943,13 @@ const MainScreen = ({navigation, route}) => {
             <View style={{borderColor: '#000000', borderWidth: 1, borderRadius: 15, paddingVertical: 5, paddingHorizontal: 10,}}>
               <Text style={{fontSize: 10, color: '#000000', fontWeight: 'bold'}} >오픈소스 라이선스</Text>
             </View>
-          </Pressable>
+          </Pressable> */}
         </View>
 
       </ScrollView>
 
       {/* 하단 페이지 이동 바 */}
-      <BottomToolbar mainScrollViewRef={mainScrollViewRef} scrollCurrentY={scrollCurrentY} scrollDimensionHeight={scrollDimensionHeight} />
+      <BottomToolbar mainScrollViewRef={mainScrollViewRef} scrollCurrentY={scrollCurrentY} scrollDimensionHeight={scrollDimensionHeight.current} />
     
 
       <AppDetailModal />
@@ -1577,9 +2004,20 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'white',
   },
-  engine: {
-    position: 'absolute',
-    right: 0,
+  searchView: {
+    flexDirection: 'row',
+    marginBottom: 5,
+    marginHorizontal: 20,
+    marginTop: 33,
+  },
+  searchInput: {
+    height: 45,
+    // width: '100%',
+    // backgroundColor: '#f0f0f0',
+    fontSize: 16,
+    borderBottomColor: 'transparent',
+    borderBottomWidth: 0,
+    // justifyContent: 'center',
   },
   title: {
     flexDirection: 'row',
@@ -1696,3 +2134,34 @@ const styles = StyleSheet.create({
   },
 
 });
+
+
+const optionsStyles = {
+  optionsContainer: {
+    backgroundColor: 'white',
+  //   padding: 5,
+    marginTop: 10,
+    marginLeft: 10,
+    borderColor: '#000000',
+    borderRadius: 5,
+    borderWidth: 2,
+    // width: 110,
+
+  },
+  optionsWrapper: {
+    // backgroundColor: '#ffffff',
+  },
+  optionWrapper: {
+      // backgroundColor: '#ffffff',
+      // margin: 0.7,
+  },
+  // optionTouchable: {
+  //   underlayColor: 'gold',
+  //   activeOpacity: 70,
+  // },
+  optionText: {
+    color: '#000000',
+    fontSize: 16,
+    margin: 5,
+  },
+};

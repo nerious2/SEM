@@ -1,4 +1,4 @@
-import React, {createContext, useReducer} from 'react';
+import React, {createContext, useReducer, useRef, useEffect} from 'react';
 
 
 
@@ -18,17 +18,21 @@ const initialGlobalAppState = {
         setActionButtonText: null,
         latestActionButtonText: '',
     },
+    deletingPackage: {
+        package: '',
+    },
     latestInstalledPackage: {
         package: '',
         version: '',
     },
-
+    notNotifyUpdatePackage: null,
+    deviceModel: '',
 };
   
 // create reducer
 const reducerGlobalApp = (state = initialGlobalAppState, action) => {
     switch (action.type) {
-        case 'SET_REFRESH_STATE':
+    case 'SET_REFRESH_STATE':
         return {
             ...state,
             isAppRefresh: action.payload,
@@ -43,10 +47,25 @@ const reducerGlobalApp = (state = initialGlobalAppState, action) => {
             ...state,
             installingPackage: action.payload,
         };
+    case 'SET_DELETING_PACKAGE':
+        return {
+            ...state,
+            deletingPackage: action.payload,
+        };
     case 'SET_LATEST_INSTALLED_PACKAGE':
         return {
             ...state,
             latestInstalledPackage: action.payload,
+        };
+    case 'SET_NOT_NOTIFY_UPDATE_PACKAGE':
+        return {
+            ...state,
+            notNotifyUpdatePackage: action.payload,
+        };
+    case 'SET_DEVICE_MODEL':
+        return {
+            ...state,
+            deviceModel: action.payload,
         };
     default:
         return state;
@@ -76,6 +95,17 @@ export const formatBytes = (bytes, decimals = 2) => {
 
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + sizes[i];
 }
+
+// 첫 렌더링 때 실행 막기
+export const useDidMountEffect = (func, deps) => {
+	const didMount = useRef(false);
+
+	useEffect(() => {
+		if (didMount.current) func();
+		else didMount.current = true;
+	}, deps);
+};
+
 
 // 안드로이드 API를 버전 이름 문자열로 반환
 export const androidAPItoVersion = (sdk) => {
