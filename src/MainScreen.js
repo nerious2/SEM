@@ -864,14 +864,14 @@ const MainScreen = ({navigation, route}) => {
 
 
         console.log('====== timeout :');
-      }, 30000);
+      }, 20000);
       
 
       const ret = RNFS.downloadFile({
         fromUrl: url,
         toFile: downloadfilePath,
-        connectionTimeout: 30000,
-        readTimeout: 30000,
+        connectionTimeout: 20000,
+        readTimeout: 20000,
         progressInterval: 500,
         // progressDivider: 10,
         begin: (res) => {
@@ -1346,6 +1346,7 @@ const MainScreen = ({navigation, route}) => {
 
       }).catch (e => {
         console.log("ERROR you ::: ", e);
+        throw e;
       });
     } catch (e) {
       console.log('error : ', e);

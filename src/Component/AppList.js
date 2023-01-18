@@ -94,6 +94,9 @@ function AppListItem({item, index, scrollEnable}) {
     // new version Ref
     const newVersion = useRef('');
 
+    // new version file size Ref
+    const newApkSize = useRef('');
+
     // notNotifyUpdate SET_NOT_NOTIFY_UPDATE_PACKAGE
     const [notNotifyUpdate, setNotNotifyUpdate] = useState(false);
 
@@ -334,7 +337,8 @@ function AppListItem({item, index, scrollEnable}) {
 
     const onPressAppButton = async (appPackage, newVersion, url, isLaunch=true) => {
 
-
+        console.log(`=====onPressAppButton`);
+        console.log(`appPackage ${appPackage} newVersion ${newVersion} url ${url}`);
         // // debug
         // const downloadfilePath = `${RNFS.DownloadDirectoryPath}/${appPackage}.apk`;
         // console.log('globalContext installing package : ', appPackage, newVersion);
@@ -580,6 +584,8 @@ function AppListItem({item, index, scrollEnable}) {
 
         // new version setting
         newVersion.current = item?.versionName && item?.is_patched && item.versionName.toUpperCase().includes('PATCH_V') ? item.patch_info.version : item.version;
+        // new apk size setting
+        newApkSize.current = item?.versionName && item?.is_patched && item.versionName.toUpperCase().includes('PATCH_V') ? item.patch_info.apk_size : item.apk_size;
 
         console.log('[AppList] newVersion : ', newVersion.current);
 
@@ -739,8 +745,8 @@ function AppListItem({item, index, scrollEnable}) {
                         <Text style={styles.appUpdateDate} numberOfLines={1}>{item.date}</Text>
                         {
                             // apk_size가 존재하는 경우 : 용량 표시
-                            item?.apk_size !== undefined && actionButtonText !== '실행' && actionButtonText !== '버전선택' && !(item?.is_patched) && (
-                                <Text style={styles.appSize} numberOfLines={1}> | {formatBytes(item.apk_size, 1)}</Text>
+                            actionButtonText !== '실행' && actionButtonText !== '버전선택' && !(actionButtonText == '다운로드' && item.is_patched) && (
+                                <Text style={styles.appSize} numberOfLines={1}> | {formatBytes(newApkSize.current, 1)}</Text>
                             )
                         }
                     </View>
@@ -834,7 +840,13 @@ function AppListItem({item, index, scrollEnable}) {
                         } else if (isPatchInstall) {
                             subMenuRef.current.open();
                         } else {
-                            onPressAppButton(item.package, item.version, item.apk_url);
+                            // 패치 버전이 설치된 경우 패치 앱 업데이트 진행
+                            if (item?.versionName && item.versionName.toUpperCase().includes('PATCH_V')) {
+                                onPressAppButton(item.package, item.patch_info.version, item.patch_info.apk_url, false);
+                            } else {
+                                onPressAppButton(item.package, item.version, item.apk_url, false);
+                            }
+                            
                         }
                         
                     }}
