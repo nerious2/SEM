@@ -108,7 +108,7 @@ function AppListItem({item, index, scrollEnable}) {
                 <MenuOption
                     disabled={false}
                     onSelect={() => {
-                        onPressAppButton(item.package, item.version, item.apk_url, false);
+                        onPressAppButton(item.package, item.version, item.apk_url);
                         return true;
                     }} 
                 >
@@ -131,7 +131,7 @@ function AppListItem({item, index, scrollEnable}) {
                 <MenuOption
                     disabled={false}
                     onSelect={() => {
-                        onPressAppButton(item.package, item.patch_info.version, item.patch_info.apk_url, false);
+                        onPressAppButton(item.package, item.patch_info.version, item.patch_info.apk_url);
                         return true;
                     }} 
                 >
@@ -230,9 +230,9 @@ function AppListItem({item, index, scrollEnable}) {
                         disabled={false}
                         onSelect={() => {
                             if (item?.versionName && item.versionName.toUpperCase().includes('PATCH_V')) {
-                                onPressAppButton(item.package, item.patch_info.version, item.patch_info.apk_url, false);
+                                onPressAppButton(item.package, item.patch_info.version, item.patch_info.apk_url);
                             } else {
-                                onPressAppButton(item.package, item.version, item.apk_url, false);
+                                onPressAppButton(item.package, item.version, item.apk_url);
                             }
                         }} 
                     />
@@ -335,31 +335,10 @@ function AppListItem({item, index, scrollEnable}) {
         NativeModules.InstalledApps.showApplicationSetting(appPackage);
     }
 
-    const onPressAppButton = async (appPackage, newVersion, url, isLaunch=true) => {
+    const onPressAppButton = async (appPackage, newVersion, url) => {
 
         console.log(`=====onPressAppButton`);
         console.log(`appPackage ${appPackage} newVersion ${newVersion} url ${url}`);
-        // // debug
-        // const downloadfilePath = `${RNFS.DownloadDirectoryPath}/${appPackage}.apk`;
-        // console.log('globalContext installing package : ', appPackage, newVersion);
-
-        // // 인스톨 패키지 기록
-        // globalContextDispatch({
-        //     type: 'SET_INSTALLING_PACKAGE',
-        //     payload: {
-        //         package: appPackage,
-        //         version: newVersion,
-        //     }
-        // });
-
-        // RNApkInstallerN.install(downloadfilePath);
-        // return;
-        // //debug end
-
-        if (actionButtonText === '실행' && isLaunch) {
-            launchApp(appPackage);
-            return;
-        }
 
         const downloadfilePath = `${RNFS.ExternalCachesDirectoryPath}/@sem_temp.apk`;
 
@@ -769,6 +748,11 @@ function AppListItem({item, index, scrollEnable}) {
                         styles.appButton
                     ]}
                     onPress={async () => {
+                        if (actionButtonText === '실행') {
+                            launchApp(item.package);
+                            return;
+                        }
+
                         if (actionButtonText === '설치불가') {
                             // const version = NativeModules.InstalledApps.getAndroidRelease();
                             ToastAndroid.show(`해당 기기의 안드로이드 버전과 호환되지 않습니다.\n현재 Android 버전 : ${DeviceInfo.getSystemVersion()}\n필요 Android 버전 : ${androidAPItoVersion(item.minimum_android_sdk)}`, ToastAndroid.LONG);
@@ -842,9 +826,9 @@ function AppListItem({item, index, scrollEnable}) {
                         } else {
                             // 패치 버전이 설치된 경우 패치 앱 업데이트 진행
                             if (item?.versionName && item.versionName.toUpperCase().includes('PATCH_V')) {
-                                onPressAppButton(item.package, item.patch_info.version, item.patch_info.apk_url, false);
+                                onPressAppButton(item.package, item.patch_info.version, item.patch_info.apk_url);
                             } else {
-                                onPressAppButton(item.package, item.version, item.apk_url, false);
+                                onPressAppButton(item.package, item.version, item.apk_url);
                             }
                             
                         }
