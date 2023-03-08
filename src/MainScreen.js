@@ -850,10 +850,10 @@ const MainScreen = ({navigation, route}) => {
           payload: false
         });
 
-        // 3초 뒤에 해더 제거
+        // 2초 뒤에 해더 제거
         setTimeout(() => {
           setIsAppRefresh(false);
-        }, 3000);
+        }, 2000);
 
         // 이전의 공지사항을 메인화면에 띄우기
         if (latestNotice != null) {
@@ -889,10 +889,10 @@ const MainScreen = ({navigation, route}) => {
               payload: false
             });
     
-            // 3초 뒤에 해더 제거
+            // 2초 뒤에 해더 제거
             setTimeout(() => {
               setIsAppRefresh(false);
-            }, 3000);
+            }, 2000);
     
             // 이전의 공지사항을 메인화면에 띄우기
             if (latestNotice != null) {
@@ -1338,10 +1338,10 @@ const MainScreen = ({navigation, route}) => {
             payload: false
           });
 
-          // 3초 뒤에 해더 제거
+          // 2초 뒤에 해더 제거
           setTimeout(() => {
             setIsAppRefresh(false);
-          }, 3000);
+          }, 2000);
         }
 
       }).catch (e => {
@@ -1378,9 +1378,8 @@ const MainScreen = ({navigation, route}) => {
   const [scrollCurrentY, setScrollCurrentY] = useState(0);
 
   const handleScroll = (event) => {
-    console.log(event.nativeEvent.contentOffset.y);
-    // scrollCurrentY = event.nativeEvent.contentOffset.y;
-    setScrollCurrentY(event.nativeEvent.contentOffset.y);
+    const { contentOffset } = event.nativeEvent;
+    setScrollCurrentY(contentOffset.y);
   }
 
   const handleScrollLayout = (event) => {
@@ -1598,6 +1597,11 @@ const MainScreen = ({navigation, route}) => {
   }
 
 
+  // 메인 스크롤 활성화 / 비활성화 핸들러
+  const handleScrollEnabled = (bool) => {
+    console.log('handleScrollEnabled : ', bool);
+    setMainScrollEnable(bool);
+  }
 
 
   return (
@@ -1694,7 +1698,7 @@ const MainScreen = ({navigation, route}) => {
                   }}
                 />
                 <MenuOptions customStyles={optionsStyles}>
-                  <MenuOption 
+                  <MenuOption
                     text='종료'
                     disabled={false}
                     onSelect={async() => {
@@ -1768,6 +1772,7 @@ const MainScreen = ({navigation, route}) => {
                     fontSize: 14,
                     fontWeight: 'bold',
                     color: '#ffffff',
+                    lineHeight: 17,
                   }}>
                     업데이트
                   </Text>
@@ -1821,7 +1826,6 @@ const MainScreen = ({navigation, route}) => {
                     }
                   ]}
                   onPress={() => {
-                    console.log('ok');
                     setAppNoticeListEnable(!appNoticeListEnable);
                   }}
                 >
@@ -1835,6 +1839,7 @@ const MainScreen = ({navigation, route}) => {
                   marginHorizontal: 20,
                   fontSize: 14,
                   marginBottom: 10,
+                  lineHeight: 17,
                 }} >{appNoticeHistory}</Text>
               )
             }
@@ -1871,7 +1876,7 @@ const MainScreen = ({navigation, route}) => {
             installedAppListEnable && 
             (
               <>
-                <AppList items={installedAppList} scrollEnable={setMainScrollEnable} />
+                <AppList items={installedAppList} scrollEnable={handleScrollEnabled} />
                 <View style={{height: 20}} />
               </>
             )
@@ -1902,7 +1907,7 @@ const MainScreen = ({navigation, route}) => {
             </Pressable>
           </View>
         </View>
-        { uninstalledAppListEnable && (<AppList items={uninstalledAppList} scrollEnable={setMainScrollEnable}/>) }
+        { uninstalledAppListEnable && (<AppList items={uninstalledAppList} scrollEnable={handleScrollEnabled}/>) }
 
         {/* 새로고침 버튼 */}
         {/* <RefreshButton /> */}
@@ -1929,8 +1934,8 @@ const MainScreen = ({navigation, route}) => {
             //   resetApp();
             // }}
           >
-            <Text style={{fontSize: 12, color: '#000000', fontWeight: 'bold'}} >모 두 의 이 북  v{DeviceInfo.getVersion()}</Text>
-            <Text style={{fontSize: 11, color: '#000000',}}>{githubPage}</Text>
+            <Text style={{fontSize: 12, lineHeight: 15, color: '#000000', fontWeight: 'bold'}} >모 두 의 이 북  v{DeviceInfo.getVersion()}</Text>
+            <Text style={{fontSize: 11, lineHeight: 14, color: '#000000',}}>{githubPage}</Text>
           </Pressable>
 
           {/* 오픈소스 라이선스 표기 */}
@@ -1962,7 +1967,7 @@ const MainScreen = ({navigation, route}) => {
         (
           <View style={{width: '100%', height: 30, backgroundColor: '#000000', paddingHorizontal: 10, justifyContent: 'center', position: 'absolute', top: 0,}}>
             <View style={{width: '100%', alignItems: 'center',}}>
-              <Text style={{fontSize: 13, fontWeight:'bold', color: '#ffffff'}}>{refreshText}</Text>
+              <Text style={{fontSize: 13, fontWeight:'bold', color: '#ffffff', width: '100%', lineHeight: 16, textAlign: 'center',}}>{refreshText}</Text>
             </View>
             {
               refreshProgressBar !== -1 && (
@@ -2031,6 +2036,7 @@ const styles = StyleSheet.create({
     fontSize: 25,
     fontWeight: 'bold',
     color: '#000000',
+    lineHeight: 30,
   },
   appBlock : {
     borderRadius: 10,
@@ -2164,5 +2170,6 @@ const optionsStyles = {
     color: '#000000',
     fontSize: 16,
     margin: 5,
+    lineHeight: 19,
   },
 };

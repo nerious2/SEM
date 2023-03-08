@@ -2,16 +2,9 @@ import React, { useRef, useState } from 'react';
 import {
     SafeAreaView,
     ScrollView,
-    StatusBar,
     StyleSheet,
     Text,
-    useColorScheme,
     View,
-    Dimensions,
-    TouchableOpacity,
-    NativeModules,
-    Button,
-    Alert,
     FlatList,
     Pressable,
 } from 'react-native';
@@ -50,7 +43,7 @@ const OSSList = () => {
                     <Text style={styles.ossDescriptionText}>{item._description}</Text>
                     <View style={{flexDirection: 'row', marginTop: 5,}}>
                         <View style={{backgroundColor: '#000000', height: 20, borderRadius: 10, paddingHorizontal: 7, justifyContent: 'center',}} >
-                            <Text style={{fontWeight: 'bold', fontSize: 10, color: '#ffffff',}}>{item._license}</Text>
+                            <Text style={{fontWeight: 'bold', fontSize: 10, color: '#ffffff', lineHeight: 13, width: '100%', textAlign: 'center', marginRight: 3,}}>{item._license}</Text>
                         </View>
                     </View>
                     <Text style={styles.ossContentText}>{item._licenseContent}</Text>
@@ -123,23 +116,28 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: '#000000',
         fontWeight: 'bold',
+        lineHeight: 15,
     },
     ossVersionText: {
         fontSize: 12,
         color: '#000000',
+        lineHeight: 15,
     },
     ossLicenseText: {
         fontSize: 12,
         color: '#000000',
+        lineHeight: 15,
     },
     ossDescriptionText: {
         marginTop: 4,
         fontSize: 12,
         color: '#000000',
+        lineHeight: 15,
     },
     ossContentText: {
         marginTop: 7,
         fontSize: 12,
         color: '#000000',
+        lineHeight: 15,
     }
 });

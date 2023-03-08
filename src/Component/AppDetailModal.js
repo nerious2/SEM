@@ -173,8 +173,8 @@ export default function AppDetailModal () {
                             </View>
                             {/* Text */}
                             <View style={{flex: 1, marginLeft: 10,}}>
-                            <Text numberOfLines={1} style={{fontWeight: 'bold', fontSize: 15}}>{appDetailContextState.label}</Text>
-                            <Text numberOfLines={1} style={{fontSize: 12}}>세부정보</Text>
+                            <Text numberOfLines={1} style={{fontWeight: 'bold', fontSize: 15, lineHeight: 18,}}>{appDetailContextState.label}</Text>
+                            <Text numberOfLines={1} style={{fontSize: 12, lineHeight: 15}}>세부정보</Text>
                             </View>
                         </View>
 
@@ -211,19 +211,19 @@ export default function AppDetailModal () {
                         {/* 새로운 기능 */}
                         
                         <View style={{marginHorizontal: 10, marginBottom: 15,}}>
-                            <Text style={{fontWeight: 'bold', fontSize: 16, marginVertical: 15,}}>새로운 기능</Text>
-                            <Text style={{fontSize: 12,}}>{`[버전 : ${appDetailContextState.version} / 업데이트 날짜 : ${appDetailContextState.date}]`}</Text>
+                            <Text style={{fontWeight: 'bold', fontSize: 16, marginVertical: 15, lineHeight: 19,}}>새로운 기능</Text>
+                            <Text style={{fontSize: 12, lineHeight: 15,}}>{`[버전 : ${appDetailContextState.version} / 업데이트 날짜 : ${appDetailContextState.date}]`}</Text>
                             
                             
                             {/* 필요 안드로이드 버전 */}
                             <View style={{flexDirection: 'row', marginVertical: 3,}}>
                                 <View style={{backgroundColor: '#000000', height: 20, borderRadius: 5, paddingHorizontal: 5, justifyContent: 'center',}} >
-                                    <Text style={{fontWeight: 'bold', fontSize: 10, color: '#ffffff',}}>Android {androidAPItoVersion(appDetailContextState.minimumAndroidSdk)}</Text>
+                                    <Text style={{fontWeight: 'bold', fontSize: 10, color: '#ffffff', lineHeight: 13,}}>Android {androidAPItoVersion(appDetailContextState.minimumAndroidSdk)}</Text>
                                 </View>
                                 <View style={{flex: 1}}/>
                             </View>
                             
-                            <Text>{appLatestUpdateLog}</Text>
+                            <Text style={{fontSize: 14, color: '#000000', lineHeight: 17,}}>{appLatestUpdateLog}</Text>
                         </View>
 
                         <View style={styles.separator} />
@@ -234,8 +234,8 @@ export default function AppDetailModal () {
                             (
                                 <>
                                     <View style={{marginHorizontal: 10, marginBottom: 15,}}>
-                                        <Text style={{fontWeight: 'bold', fontSize: 16, marginVertical: 15,}}>패치 정보</Text>
-                                        <Text>{appDetailContextState.patch_description}</Text>
+                                        <Text style={{fontWeight: 'bold', fontSize: 16, marginVertical: 15, lineHeight: 19,}}>패치 정보</Text>
+                                        <Text style={{fontSize: 14, color: '#000000', lineHeight: 17,}}>{appDetailContextState.patch_description}</Text>
                                     </View>
 
                                     <View style={styles.separator} />
@@ -246,8 +246,8 @@ export default function AppDetailModal () {
 
                         {/* 앱 정보 */}
                         <View style={{marginHorizontal: 10, marginBottom: 15,}}>
-                            <Text style={{fontWeight: 'bold', fontSize: 16, marginVertical: 15,}}>앱 정보</Text>
-                            <Text>{appDetailContextState.description}</Text>
+                            <Text style={{fontWeight: 'bold', fontSize: 16, marginVertical: 15, lineHeight: 19,}}>앱 정보</Text>
+                            <Text style={{fontSize: 14, color: '#000000', lineHeight: 17,}}>{appDetailContextState.description}</Text>
                         </View>
 
 
@@ -259,14 +259,17 @@ export default function AppDetailModal () {
                                 <>
                                     <View style={styles.separator} />
                                     
-                                    <View style={{marginHorizontal: 10, marginBottom: 10,}}>
-                                        <Text style={{fontWeight: 'bold', fontSize: 16, marginVertical: 15,}}>이전 버전 내역</Text>
+                                    <View style={{marginBottom: 10,}}>
+                                        <Text style={{fontWeight: 'bold', fontSize: 16, marginHorizontal: 10, marginVertical: 15, lineHeight: 19,}}>이전 버전 내역</Text>
                                         {
-                                            appUpdateLog.map((log) => {
+                                            appUpdateLog.map((log, index, logArr) => {
                                                 return (
                                                     <>
-                                                        <Text style={{fontSize: 12, marginBottom: 12,}}>{`[버전 : ${log.version} / 업데이트 날짜 : ${log.date}]`}</Text>
-                                                        <Text style={{marginBottom: 14,}}>{log.contents}</Text>
+                                                        <Text style={{marginHorizontal: 10, marginBottom: 12, fontSize: 12, color: '#000000', lineHeight: 15,}}>{`[버전 : ${log.version} / 업데이트 날짜 : ${log.date}]`}</Text>
+                                                        <Text style={{marginHorizontal: 10, marginBottom: 14, fontSize: 14, color: '#000000', lineHeight: 17,}}>{log.contents.length != 0 ? log.contents : "업데이트 내용 없음"}</Text>
+                                                        {
+                                                            logArr.length !== index + 1 && (<View style={styles.updateLogSeparator} />)
+                                                        }
                                                     </>
                                                 );
                                             })
@@ -324,7 +327,7 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         // paddingBottom: 10,
         borderBottomColor: '#000000',
-        borderBottomWidth: 1,
+        borderBottomWidth: 2,
 
     },
     modalHeaderInner: {
@@ -339,9 +342,15 @@ const styles = StyleSheet.create({
         marginBottom: 5,
     },
     separator: {
-        borderBottomWidth: 1,
+        borderBottomWidth: 1.7,
         borderBottomColor: '#000000',
         width: '100%',
         // marginVertical: 10,
+    },
+    updateLogSeparator: {
+        borderBottomWidth: 1,
+        borderBottomColor: '#000000',
+        width: '100%',
+        marginBottom: 10, 
     },
 });

@@ -36,7 +36,7 @@ export default function AppVersionSelectList({item, packageName, packageLabel, o
         />
       }
       keyExtractor={(item, index) => index.toString()}
-      ItemSeparatorComponent={() => <View style={{borderBottomWidth: 0.8, borderBottomColor: '#000000',}}/>}
+      ItemSeparatorComponent={() => <View style={{borderBottomWidth: 1, borderBottomColor: '#000000',}}/>}
       ListFooterComponent={() => <View />}
     //   ListFooterComponentStyle={{height: 20,}}
     />
@@ -127,7 +127,7 @@ function AppVersionSelectListItem({item, index, packageName, label, onPressAppBu
                         {/* 필요 안드로이드 버전 */}
                         <View style={{flexDirection: 'row', marginVertical: 3,}}>
                             <View style={{backgroundColor: '#000000', height: 20, borderRadius: 5, paddingHorizontal: 5, justifyContent: 'center',}} >
-                                <Text style={{fontWeight: 'bold', fontSize: 10, color: '#ffffff',}}>Android {androidAPItoVersion(item.minimum_android_sdk)}</Text>
+                                <Text style={{fontWeight: 'bold', fontSize: 10, lineHeight: 13, color: '#ffffff',}}>Android {androidAPItoVersion(item.minimum_android_sdk)}</Text>
                             </View>
                             <View style={{flex: 1}}/>
                         </View>
@@ -168,6 +168,8 @@ function AppVersionSelectListItem({item, index, packageName, label, onPressAppBu
                         color : actionButtonText == '설치불가'
                         ? '#ffffff'
                         : '#000000',
+                        fontSize: 14,
+                        lineHeight: 17,
                     }}>{actionButtonText}</Text>
                     {
                         nowDownloadJobId !== -1 && (
@@ -218,16 +220,16 @@ const styles = StyleSheet.create({
         // alignItems: 'center',
     },
     appLabel: {
-        fontSize: 17,
+        fontSize: 16,
         marginBottom: -2,
+        lineHeight: 19,
     },
     appContents: {
         fontWeight: 'normal',
         textDecorationLine: 'none',
         fontSize: 13,
-    },
-    appUpdateDate: {
-        fontSize: 13,
+        lineHeight: 16,
+        flex: 1,
     },
     appButton: {
         width: 70,
@@ -241,5 +243,6 @@ const styles = StyleSheet.create({
     appSize: {
         fontSize: 13,
         textAlign: 'center',
+        lineHeight: 16,
     },
 });

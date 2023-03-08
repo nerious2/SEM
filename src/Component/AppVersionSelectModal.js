@@ -410,8 +410,8 @@ export default function AppVersionSelectModal () {
 
                             {/* Text */}
                             <View style={{flex: 1, marginLeft: 10,}}>
-                                <Text numberOfLines={1} style={{fontWeight: 'bold', fontSize: 15}}>{appVSContextState.label}</Text>
-                                <Text numberOfLines={1} style={{fontSize: 12}}>버전 선택</Text>
+                                <Text numberOfLines={1} style={{fontWeight: 'bold', fontSize: 15, lineHeight: 18,}}>{appVSContextState.label}</Text>
+                                <Text numberOfLines={1} style={{fontSize: 12, lineHeight: 15,}}>버전 선택</Text>
                             </View>
                         </View>
 
@@ -452,21 +452,21 @@ export default function AppVersionSelectModal () {
  
                         {/* 최신 버전 */}
                         <View style={{marginLeft: 10, marginBottom: 15,}}>
-                            <Text style={{fontWeight: 'bold', fontSize: 16, marginVertical: 15,}}>최신 버전</Text>
+                            <Text style={{fontWeight: 'bold', fontSize: 16, lineHeight: 19, marginVertical: 15,}}>최신 버전</Text>
 
                             <View style={{flexDirection: 'row', justifyContent: 'space-between',}} >
                                 <View style={{flex: 1, marginRight: 10,}}>
-                                    <Text style={{fontSize: 12,}}>{`[버전 : ${appVSContextState.latestVersion} / 업데이트 날짜 : ${appVSContextState.latestDate}]`}</Text>
+                                    <Text style={{fontSize: 12, lineHeight: 15,}}>{`[버전 : ${appVSContextState.latestVersion} / 업데이트 날짜 : ${appVSContextState.latestDate}]`}</Text>
 
                                     {/* 필요 안드로이드 버전 */}
                                     <View style={{flexDirection: 'row', marginVertical: 3,}}>
                                         <View style={{backgroundColor: '#000000', height: 20, borderRadius: 5, paddingHorizontal: 5, justifyContent: 'center',}} >
-                                            <Text style={{fontWeight: 'bold', fontSize: 10, color: '#ffffff',}}>Android {androidAPItoVersion(appVSContextState.minimumAndroidSdk)}</Text>
+                                            <Text style={{fontWeight: 'bold', fontSize: 10, lineHeight: 13, color: '#ffffff',}}>Android {androidAPItoVersion(appVSContextState.minimumAndroidSdk)}</Text>
                                         </View>
                                         <View style={{flex: 1}}/>
                                     </View>
 
-                                    <Text>{appLatestUpdateLog}</Text>
+                                    <Text style={{fontSize: 14, color: '#000000', lineHeight: 17,}}>{appLatestUpdateLog}</Text>
    
                                 </View>
 
@@ -497,6 +497,8 @@ export default function AppVersionSelectModal () {
                                             color : actionButtonText == '설치불가'
                                             ? '#ffffff'
                                             : '#000000',
+                                            fontSize: 14,
+                                            lineHeight: 17,
                                         }}>{actionButtonText}</Text>
                                         {
                                             nowDownloadJobId !== -1 && (
@@ -532,7 +534,7 @@ export default function AppVersionSelectModal () {
                         {/* 이전 버전 */}
 
                         <View style={{marginBottom: 5,}}>
-                            <Text style={{fontWeight: 'bold', fontSize: 16, marginTop: 15, marginBottom: 5, marginHorizontal: 10,}}>이전 버전</Text>
+                            <Text style={{fontWeight: 'bold', fontSize: 16, lineHeight: 19, marginTop: 15, marginBottom: 5, marginHorizontal: 10,}}>이전 버전</Text>
                             <AppVersionSelectList 
                                 item={appVSContextState.versionList}
                                 packageName={appVSContextState.package}
@@ -586,7 +588,7 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         // paddingBottom: 10,
         borderBottomColor: '#000000',
-        borderBottomWidth: 1,
+        borderBottomWidth: 2,
 
     },
     modalHeaderInner: {
@@ -601,7 +603,7 @@ const styles = StyleSheet.create({
         marginBottom: 5,
     },
     separator: {
-        borderBottomWidth: 1,
+        borderBottomWidth: 1.7,
         borderBottomColor: '#000000',
         width: '100%',
         // marginVertical: 10,
@@ -609,6 +611,7 @@ const styles = StyleSheet.create({
     appSize: {
         fontSize: 13,
         textAlign: 'center',
+        lineHeight: 16,
     },
     appButton: {
         width: 70,

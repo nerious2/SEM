@@ -114,7 +114,7 @@ function AppListItem({item, index, scrollEnable}) {
                 >
                     <View style={{margin: 5, justifyContent: 'center'}}>
                         <View style={{flexDirection: 'row', marginHorizontal: 5, alignItems: 'center'}}>
-                            <Text style={{ color: '#000000', fontSize: 16, marginRight: 5,}}>원본 설치</Text>
+                            <Text style={{ color: '#000000', fontSize: 16, marginRight: 5, lineHeight: 19,}}>원본 설치</Text>
                             <FastImage
                                 source={require('../../image/original.png')}
                                 style={{width: 40, height: 15}}
@@ -123,7 +123,7 @@ function AppListItem({item, index, scrollEnable}) {
                         </View>
                         <View style={{flexDirection: 'row', marginHorizontal: 5, alignItems: 'center'}}>
 
-                            <Text style={{ color: '#000000', fontSize: 13, marginLeft: 0, marginTop: 3,}}>{item?.date} | {item?.apk_size && formatBytes(item.apk_size, 1)}</Text>
+                            <Text style={{ color: '#000000', fontSize: 13, marginLeft: 0, marginTop: 3, lineHeight: 16,}}>{item?.date} | {item?.apk_size && formatBytes(item.apk_size, 1)}</Text>
                         </View>
                     </View>
                 </MenuOption>
@@ -137,7 +137,7 @@ function AppListItem({item, index, scrollEnable}) {
                 >
                     <View style={{margin: 5, justifyContent: 'center'}}>
                         <View style={{flexDirection: 'row', marginHorizontal: 5, alignItems: 'center'}}>
-                            <Text style={{ color: '#000000', fontSize: 16, marginRight: 5,}}>패치 설치</Text>
+                            <Text style={{ color: '#000000', fontSize: 16, marginRight: 5, lineHeight: 19,}}>패치 설치</Text>
                             <FastImage
                                 source={require('../../image/patch.png')}
                                 style={{width: 50, height: 15}}
@@ -146,7 +146,7 @@ function AppListItem({item, index, scrollEnable}) {
                         </View>
                         <View style={{flexDirection: 'row', marginHorizontal: 5, alignItems: 'center'}}>
 
-                            <Text style={{ color: '#000000', fontSize: 13, marginLeft: 0, marginTop: 3,}}>{item?.patch_info?.date} | {item?.patch_info?.apk_size && formatBytes(item.patch_info.apk_size, 1)}</Text>
+                            <Text style={{ color: '#000000', fontSize: 13, marginLeft: 0, marginTop: 3, lineHeight: 16,}}>{item?.patch_info?.date} | {item?.patch_info?.apk_size && formatBytes(item.patch_info.apk_size, 1)}</Text>
                         </View>
                     </View>
                 </MenuOption>
@@ -158,6 +158,30 @@ function AppListItem({item, index, scrollEnable}) {
     const SubMenuInstalledApp = () => {
         return (
             <>
+                {(!isPastVersion && item.versionName !== newVersion.current && item.is_update_target && Platform.Version >= item.minimum_android_sdk) 
+                    && notNotifyUpdate && item.versionName !== newVersion.current && item.is_update_target && Platform.Version >= item.minimum_android_sdk ? (
+                    <MenuOption 
+                        text='업데이트'
+                        disabled={false}
+                        onSelect={() => {
+                            if (item?.versionName && item.versionName.toUpperCase().includes('PATCH_V')) {
+                                onPressAppButton(item.package, item.patch_info.version, item.patch_info.apk_url);
+                            } else {
+                                onPressAppButton(item.package, item.version, item.apk_url);
+                            }
+                        }} 
+                    />
+                ) : actionButtonText !== '실행' && (
+                        <MenuOption 
+                        text='실행'
+                        disabled={false}
+                        onSelect={() => {
+                            launchApp(item.package);
+                        }} 
+                        />
+                    )
+                } 
+
                 {/* {item?.is_past_version !== undefined && item.is_past_version && (
                     <MenuOption 
                         text='버전 변경'
@@ -213,7 +237,7 @@ function AppListItem({item, index, scrollEnable}) {
                 >
                     <View style={{flexDirection: 'row', margin: 5, alignItems: 'center'}}>
                         <MaterialIcons name={notNotifyUpdate ? 'check-box' : 'check-box-outline-blank'} color={'#000000'} size={23} />
-                        <Text style={{ color: '#000000', fontSize: 16, marginLeft: 5,}}>업데이트 알리지 않음</Text>
+                        <Text style={{ color: '#000000', fontSize: 16, marginLeft: 5, lineHeight: 19,}}>업데이트 알리지 않음</Text>
                     </View>
                 </MenuOption>
             </>
@@ -301,7 +325,7 @@ function AppListItem({item, index, scrollEnable}) {
                 >
                     <View style={{flexDirection: 'row', margin: 5, alignItems: 'center'}}>
                         <MaterialIcons name={notNotifyUpdate ? 'check-box' : 'check-box-outline-blank'} color={'#000000'} size={23} />
-                        <Text style={{ color: '#000000', fontSize: 16, marginLeft: 5,}}>업데이트 알리지 않음</Text>
+                        <Text style={{ color: '#000000', fontSize: 16, marginLeft: 5, lineHeight: 19,}}>업데이트 알리지 않음</Text>
                     </View>
                 </MenuOption>
             </>
@@ -734,6 +758,34 @@ function AppListItem({item, index, scrollEnable}) {
                 </View>
             </View>
 
+            {/* 추가 메뉴 버튼 */}
+            {
+                (actionButtonText == '실행' || actionButtonText == '업데이트') && (
+                    <View style={{ justifyContent: 'center'}}>
+                        <Pressable 
+                            style={styles.menuButton}
+                            onPress={() => {
+                                // 메뉴 표시
+                                if (globalContextState.nowDownloadJobId == -1) {
+                                    subMenuRef.current.open();
+                                }
+                            }}
+                        >
+                            <MaterialIcons name={'more-vert'} color={'#000000'} size={25} />
+                        </Pressable>
+
+                        {/* 길게 눌러 메뉴 표시 */}
+                        <Menu ref={subMenuRef} 
+                            renderer={renderers.NotAnimatedContextMenu}
+                        >
+                            <MenuTrigger/>
+                            <MenuOptions customStyles={optionsSubMenuStyles}>
+                               <SubMenuInstalledApp/>
+                            </MenuOptions>
+                        </Menu>
+                    </View>
+                )
+            }
             {/* 실행/업데이트/다운로드 버튼 */}
             <View style={{ justifyContent: 'center'}}>
                 <Pressable 
@@ -835,19 +887,22 @@ function AppListItem({item, index, scrollEnable}) {
                         
                     }}
 
-                    delayLongPress={500}
-                    onLongPress={() => {
-                        // 길게 눌러 메뉴 표시
-                        if (globalContextState.nowDownloadJobId == -1 && actionButtonText !== '설치불가' && item?.versionName) {
-                            subMenuRef.current.open();
-                        }
-                    }}
+                    // delayLongPress={500}
+                    // onLongPress={() => {
+                    //     // 길게 눌러 메뉴 표시
+                    //     if (globalContextState.nowDownloadJobId == -1 && actionButtonText !== '설치불가' && item?.versionName) {
+                    //         subMenuRef.current.open();
+                    //     }
+                    // }}
+
                 >
                     <Text style={{
                         color : actionButtonText == '설치불가'
                         ? '#ffffff'
                         : '#000000',
                         fontWeight: 'bold',
+                        fontSize: 14,
+                        lineHeight: 17,
                     }}>{actionButtonText}</Text>
                     {
                         nowDownloadJobId != -1 && (
@@ -865,34 +920,19 @@ function AppListItem({item, index, scrollEnable}) {
 
                 </Pressable>
 
-                {/* 길게 눌러 메뉴 표시 */}
-                <Menu ref={subMenuRef} 
-                    renderer={renderers.NotAnimatedContextMenu}
-                    onOpen={() => {
-                        console.log('menu opened');
-                        scrollEnable(false);
-                    }}
-                    onClose={() => {
-                        console.log('menu closed');
-                        scrollEnable(true);
-                    }}
-                >
-                    <MenuTrigger/>
-                    <MenuOptions customStyles={optionsStyles}>
-                    {
-                        isPatchInstall ? 
-                        (
+                {/* 원본 / 패치 앱 선택 메뉴 */}
+                { isPatchInstall && (
+                    <Menu ref={subMenuRef} 
+                        renderer={renderers.NotAnimatedContextMenu}
+                    >
+                        <MenuTrigger/>
+                        <MenuOptions customStyles={optionsSelectInstallStyles}>
+                        {
                             <SubMenuPatchApp/>
-                        ) : !isPastVersion && item.versionName !== newVersion.current && item.is_update_target && Platform.Version >= item.minimum_android_sdk ?
-                            (
-                                <SubMenuNeedUpdateApp/>
-                            ) :
-                            (
-                                <SubMenuInstalledApp/>
-                            )
-                    }
-                    </MenuOptions>
-                </Menu>
+                        }
+                        </MenuOptions>
+                    </Menu>
+                )}
             </View>
         </Pressable>
     );
@@ -923,17 +963,22 @@ const styles = StyleSheet.create({
     },
     appLabel: {
         fontSize: 20,
-        marginBottom: -2,
+        marginTop: 2,
+        // marginBottom: -2,
+        lineHeight: 23,
     },
     appVersion: {
         fontSize: 15,
+        lineHeight: 18,
     },
     appUpdateDate: {
         fontSize: 13,
+        lineHeight: 16,
     },
     appSize: {
         fontSize: 13,
         flex: 1,
+        lineHeight: 16,
     },
     appButton: {
         width: 70,
@@ -944,15 +989,24 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
+    menuButton: {
+        width: 35,
+        height: 50,
+        // borderRadius: 5,
+        // borderWidth: 2,
+        // borderColor: '#000000',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
 });
 
-const optionsStyles = {
+const optionsSubMenuStyles = {
     optionsContainer: {
       backgroundColor: 'white',
     //   padding: 5,
       marginTop: -35,
     //   marginLeft: -10,
-        marginLeft: 5,
+      marginLeft: 55,
       borderColor: '#000000',
       borderRadius: 5,
       borderWidth: 2,
@@ -974,5 +1028,32 @@ const optionsStyles = {
       color: '#000000',
       fontSize: 16,
       margin: 5,
+      lineHeight: 19,
     },
-  };
+};
+
+const optionsSelectInstallStyles = {
+    optionsContainer: {
+      backgroundColor: 'white',
+    //   padding: 5,
+      marginTop: -35,
+      marginLeft: -10,
+      borderColor: '#000000',
+      borderRadius: 5,
+      borderWidth: 2,
+
+    },
+    optionsWrapper: {
+      // backgroundColor: '#ffffff',
+    },
+    optionWrapper: {
+        // backgroundColor: '#ffffff',
+        // margin: 0.7,
+    },
+    optionText: {
+      color: '#000000',
+      fontSize: 16,
+      margin: 5,
+      lineHeight: 19,
+    },
+};

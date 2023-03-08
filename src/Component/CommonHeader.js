@@ -72,6 +72,7 @@ const styles = StyleSheet.create({
         fontSize: 20,
         color: '#000000',
         alignItems: 'flex-start',
+        lineHeight: 23,
     },
     text2: {
         paddingLeft: 10,
