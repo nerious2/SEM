@@ -143,8 +143,8 @@ android {
         applicationId "com.se.ebookmanager"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 12
-        versionName "1.0.03"
+        versionCode 13
+        versionName "1.0.04"
         // Enabling multidex support.
         multiDexEnabled true
     }

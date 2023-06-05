@@ -33,6 +33,7 @@ import AlertAsync from "react-native-alert-async";
 import ProgressBar from "react-native-animated-progress";
 import RNApkInstallerN from 'react-native-apk-installer-n';
 import RNExitApp from 'react-native-exit-app';
+import VersionCheck from 'react-native-version-check';
 
 import BottomToolbar from './Component/BottomToolbar';
 import AppDetailModal from './Component/AppDetailModal';
@@ -262,7 +263,7 @@ const MainScreen = ({navigation, route}) => {
   const backAction = () => {
 
 
-    Alert.alert("종료", "모두의이북을 종료하시겠습니까?", [
+    Alert.alert("종료", "모두의 이북을 종료하시겠습니까?", [
       {
         text: "취소",
         onPress: () => null,
@@ -339,7 +340,7 @@ const MainScreen = ({navigation, route}) => {
     }
 
 
-    Alert.alert("앱 초기화", "모두의이북 앱을 초기화하시겠습니까?\n문제가 발생한 경우에만 초기화를 하시기를 권장합니다.", [
+    Alert.alert("앱 초기화", "모두의 이북 앱을 초기화하시겠습니까?\n문제가 발생한 경우에만 초기화를 하시기를 권장합니다.", [
       {
         text: "취소",
         onPress: () => null,
@@ -416,7 +417,7 @@ const MainScreen = ({navigation, route}) => {
         
         setRefreshText('앱 초기화 성공');
 
-        Alert.alert("앱 초기화 완료", "모두의이북 앱을 초기화하였습니다.\n앱을 다시 실행하시면 서버에서 모든 정보를 다시 가져옵니다.\n\n앱을 종료합니다.", [
+        Alert.alert("앱 초기화 완료", "모두의 이북 앱을 초기화하였습니다.\n앱을 다시 실행하시면 서버에서 모든 정보를 다시 가져옵니다.\n\n앱을 종료합니다.", [
             { text: "확인", onPress: () => {
                 // 앱 종료
                 RNExitApp.exitApp();
@@ -650,7 +651,7 @@ const MainScreen = ({navigation, route}) => {
   const readAppList = async (appList) => {
 
     const temp = await NativeModules.InstalledApps.getApps();
-    console.log(temp);
+    // console.log(temp);
     
     let tempAllApps = JSON.parse(temp);
     // console.log('Installed App List : ', tempAllApps.length);
@@ -999,14 +1000,14 @@ const MainScreen = ({navigation, route}) => {
             if (isEmergencyUpdate|| savedAppSetting.current.updateAlertEnable) {
 
               const emergencyTitle = '중요 업데이트';
-              const emergencyContents = '모두의이북 앱의 새로운 버전이 출시되었습니다. 업데이트를 하지 않을 시 앱을 사용하실 수 없습니다.';
+              const emergencyContents = '모두의 이북 앱의 새로운 버전이 출시되었습니다. 업데이트를 하지 않을 시 앱을 사용하실 수 없습니다.';
               const emergencySelect = [
                 {text: '종료', onPress: () => 'exit'},
                 {text: '업데이트', onPress: () => 'yes'},
               ];
 
               const normalTitle = '업데이트';
-              const normalContents = '모두의이북 앱의 새로운 버전이 출시되었습니다.';
+              const normalContents = '모두의 이북 앱의 새로운 버전이 출시되었습니다.';
               const normalSelect = [
                 {text: '알림끄기', onPress: () => 'disable'},
                 {text: '취소', onPress: () => 'no'},
@@ -1059,12 +1060,14 @@ const MainScreen = ({navigation, route}) => {
 
           // 아이콘 유무 체크, 없을 경우 새로 다운로드
           const appList = updateData.app;
+          // debug
+          // appList.pop();
           const appListLength = appList.length;
 
           // const savedAppList = await AsyncStorage.getItem('@APP_LIST');
 
           // 2022.11.07 promise.all 로 변경 (검증 필요)
-          const appTaskPromise = [];
+          let appTaskPromise = [];
           // let appTaskIndex = 0;
           setRefreshText(`앱 정보 가져오는 중 [${appListLength}]`);
 
@@ -1296,7 +1299,7 @@ const MainScreen = ({navigation, route}) => {
                 // AsyncStorage 변경사항 감지 시 -> 반영
                 if (isChangedSavedPackageObj) {
                   console.log('saved AsyncStorage Data :: ', value.package);
-                  console.log(JSON.stringify(savedPackageObj));
+                  // console.log(JSON.stringify(savedPackageObj));
                   await AsyncStorage.setItem(value.package, JSON.stringify(savedPackageObj));
                 }
 
@@ -1313,9 +1316,28 @@ const MainScreen = ({navigation, route}) => {
             });
             // 22.11.07
             appTaskPromise.push(promise);
+
+            // 23.05.04 - 5개 작업씩 끊어서 기다림
+            if ((index+1) % 5 == 0) {
+              console.log('==========wait Promise task : ', index)
+              await Promise.all(appTaskPromise);
+              console.log('==========reset appTaskPromise')
+              appTaskPromise = [];
+            }
+
+            // 23.05.11 앱 하나씩 새로고침
+            // await Promise.all(appTaskPromise);
+            // appTaskPromise = [];
+            // appTaskIndex++;
+            // setRefreshText(`앱 정보 가져오는 중 [${appTaskIndex} / ${appListLength}]`);
+
           }
 
-          await Promise.all(appTaskPromise);
+          // 남은 작업이 존재할 경우 기다림
+          if (appTaskPromise.length > 0) {
+            console.log('final wait Promise task : ', appTaskPromise.length)
+            await Promise.all(appTaskPromise);
+          }
           
           // setRefreshProgressBar(100);
 
@@ -1346,14 +1368,22 @@ const MainScreen = ({navigation, route}) => {
 
       }).catch (e => {
         console.log("ERROR you ::: ", e);
+        setRefreshText('새로고침 실패. 다시 시도해주세요.');
+
+        globalContextDispatch({
+          type: 'SET_REFRESH_STATE',
+          payload: false
+        });
+  
+        // 2초 뒤에 해더 제거
+        setTimeout(() => {
+          setIsAppRefresh(false);
+        }, 2000);
         throw e;
       });
     } catch (e) {
       console.log('error : ', e);
-      globalContextDispatch({
-        type: 'SET_REFRESH_STATE',
-        payload: false
-      });
+
 
       // 이전의 공지사항을 메인화면에 띄우기
       if (latestNotice != null) {
@@ -1362,7 +1392,17 @@ const MainScreen = ({navigation, route}) => {
         setAppNoticeListEnable(true);
       }
 
-      setIsAppRefresh(false);
+      setRefreshText('새로고침 실패. 다시 시도해주세요.');
+
+      globalContextDispatch({
+        type: 'SET_REFRESH_STATE',
+        payload: false
+      });
+
+      // 2초 뒤에 해더 제거
+      setTimeout(() => {
+        setIsAppRefresh(false);
+      }, 2000);
     }
   }
 
@@ -1912,7 +1952,7 @@ const MainScreen = ({navigation, route}) => {
         {/* 새로고침 버튼 */}
         {/* <RefreshButton /> */}
 
-        {/* 모두의이북 정보 */}
+        {/* 모두의 이북 정보 */}
 
         <View style={{alignItems: 'center', justifyContent: 'center', marginBottom: 15, height: 65,}}>
           <Pressable

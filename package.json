@@ -31,6 +31,7 @@
     "react-native-safe-area-context": "3.3.2",
     "react-native-screens": "3.11.1",
     "react-native-vector-icons": "^9.1.0",
+    "react-native-version-check": "^3.4.7",
     "react-native-zip-archive": "^6.0.9",
     "react-redux": "^7.2.6",
     "redux": "^4.1.2",
