@@ -33,7 +33,7 @@ import AlertAsync from "react-native-alert-async";
 import ProgressBar from "react-native-animated-progress";
 import RNApkInstallerN from 'react-native-apk-installer-n';
 import RNExitApp from 'react-native-exit-app';
-import VersionCheck from 'react-native-version-check';
+import RNFetchBlob from "rn-fetch-blob";
 
 import BottomToolbar from './Component/BottomToolbar';
 import AppDetailModal from './Component/AppDetailModal';
@@ -136,6 +136,7 @@ const MainScreen = ({navigation, route}) => {
 
         // device info 설정
         const model = DeviceInfo.getModel();
+
         switch (model) {
         case 'CREMA-0630L':   // CARTA
         case 'CREMA-0610L':   // SHINE
@@ -229,12 +230,28 @@ const MainScreen = ({navigation, route}) => {
 
     }
 
+  //   async function requestPermission() {
+  //     try {
+  //          const granted = await PermissionsAndroid.requestMultiple([PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE, PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE
+  //          ]).then((result)=>{
+  //              if(result['android.permission.READ_EXTERNAL_STORAGE'] && result['android.permission.WRITE_EXTERNAL_STORAGE'] ==='granted'){
+  //                  console.log('모든 권한 획득')
+  //              }
+  //              else{
+  //                  console.log('거절된 권한있음')
+  //              }
+  //       })
+  //    } catch (err) {
+  //      console.warn(err);
+  //    }
+  //  }
+
     // 앱 처음 실행 시 동작 코드
     console.log('THIS VERSION : ', DeviceInfo.getVersion());
     makeAppListFirst();
     getSavedSetting();
     checkTempFile();
-
+    // requestPermission();
   }, []);
 
   useEffect(() => {
@@ -469,93 +486,122 @@ const MainScreen = ({navigation, route}) => {
         console.log('unlink update APK OK');
       }
 
+      // === react-native-fs
+      // // 자체 타임아웃 구현
+      // const downloadTimeout = setTimeout(() => {
+      //   console.log('jobid :: ', jobId);
+      //   if (jobId != -1) {
+      //     RNFS.stopDownload(jobId);
+      //     console.log('stopDownload ', jobId);
 
-      // 자체 타임아웃 구현
-      const downloadTimeout = setTimeout(() => {
-        console.log('jobid :: ', jobId);
-        if (jobId != -1) {
-          RNFS.stopDownload(jobId);
-          console.log('stopDownload ', jobId);
+      //     globalContextDispatch({
+      //         type: 'SET_NOW_DOWNLOAD_JOBID',
+      //         payload: -1
+      //     });
+      //   }
 
-          globalContextDispatch({
-              type: 'SET_NOW_DOWNLOAD_JOBID',
-              payload: -1
-          });
-        }
+      //   setNowDownloadJobId(-1);
+      //   setRefreshProgressBar(-1);
 
-        setNowDownloadJobId(-1);
-        setRefreshProgressBar(-1);
+      //   ToastAndroid.show('서버에 연결하는데 실패했습니다.', ToastAndroid.SHORT);
+      //   setRefreshText('앱 업데이트 실패');
 
-        ToastAndroid.show('서버에 연결하는데 실패했습니다.', ToastAndroid.SHORT);
-        setRefreshText('앱 업데이트 실패');
+      //   // 3초 뒤에 해더 제거
+      //   setTimeout(() => {
+      //     setIsHeaderEnable(false);
+      //   }, 3000);
 
-        // 3초 뒤에 해더 제거
-        setTimeout(() => {
-          setIsHeaderEnable(false);
-        }, 3000);
+      //   console.log('====== timeout :');
+      // }, 30000);
 
-        console.log('====== timeout :');
-      }, 30000);
+      // const ret = RNFS.downloadFile({
+      //   fromUrl: url,
+      //   toFile: downloadfilePath,
+      //   connectionTimeout: 30000,
+      //   readTimeout: 30000,
+      //   progressInterval: 500,
+      //   // progressDivider: 10,
+      //   begin: (res) => {
+      //     clearTimeout(downloadTimeout);
+      //     console.log("Response begin ===\n\n");
+      //     console.log(res);
+      //     if (res.statusCode == 200) {
+      //       setRefreshProgressBar(0);
+      //       setNowDownloadJobId(res.jobId);
+      //     } else {
+      //       ToastAndroid.show('다운로드에 실패했습니다. 잠시 후 다시 시도하세요.', ToastAndroid.SHORT);
+      //       setRefreshText('앱 업데이트 실패');
+      //       setRefreshProgressBar(-1);
+      //       setNowDownloadJobId(-1);
 
-      const ret = RNFS.downloadFile({
-        fromUrl: url,
-        toFile: downloadfilePath,
-        connectionTimeout: 30000,
-        readTimeout: 30000,
-        progressInterval: 500,
-        // progressDivider: 10,
-        begin: (res) => {
-          clearTimeout(downloadTimeout);
-          console.log("Response begin ===\n\n");
-          console.log(res);
-          if (res.statusCode == 200) {
-            setRefreshProgressBar(0);
-            setNowDownloadJobId(res.jobId);
-          } else {
-            ToastAndroid.show('다운로드에 실패했습니다. 잠시 후 다시 시도하세요.', ToastAndroid.SHORT);
-            setRefreshText('앱 업데이트 실패');
-            setRefreshProgressBar(-1);
-            setNowDownloadJobId(-1);
-
-            // 3초 뒤에 해더 제거
-            setTimeout(() => {
-              setIsHeaderEnable(false);
-            }, 3000);
-          }
-        },
-        progress: (res) => {
-          //here you can calculate your progress for file download
+      //       // 3초 뒤에 해더 제거
+      //       setTimeout(() => {
+      //         setIsHeaderEnable(false);
+      //       }, 3000);
+      //     }
+      //   },
+      //   progress: (res) => {
+      //     //here you can calculate your progress for file download
   
-          console.log("Response written ===\n\n");
-          let progressPercent = (res.bytesWritten / res.contentLength) * 100; // to calculate in percentage
-          console.log("\n\nprogress===", progressPercent)
-          setRefreshProgressBar(progressPercent);
-          // this.setState({ progress: progressPercent.toString() });
-          // item.downloadProgress = progressPercent;
-          console.log(res);
-        }
+      //     console.log("Response written ===\n\n");
+      //     let progressPercent = (res.bytesWritten / res.contentLength) * 100; // to calculate in percentage
+      //     console.log("\n\nprogress===", progressPercent)
+      //     setRefreshProgressBar(progressPercent);
+      //     // this.setState({ progress: progressPercent.toString() });
+      //     // item.downloadProgress = progressPercent;
+      //     console.log(res);
+      //   }
+      // });
+
+      // console.log('set jobId ::: ', ret.jobId);
+
+      // const result = await ret.promise;
+      // console.log(' result == ', result);
+
+      // === rn-fetch-blob
+      const ret = RNFetchBlob.config({
+        trusty: true,
+        path: downloadfilePath,
+      }).fetch(
+        "GET",
+        url,
+      ).progress((received, total) => {
+        // console.log("Response written ===\n\n");
+        let progressPercent = (received / total) * 100; // to calculate in percentage
+        console.log("progress===", progressPercent)
+        setRefreshProgressBar(progressPercent);
+        // this.setState({ progress: progressPercent.toString() });
+        // item.downloadProgress = progressPercent;
       });
 
-      console.log('set jobId ::: ', ret.jobId);
+      // === react-native-fs
+      // if(res.statusCode == 200) {
+      // === rn-fetch-blob
+      ret.then((res) => {
 
-      const result = await ret.promise;
-      console.log(' result == ', result);
+        setNowDownloadJobId(-1);
 
-      if(result.statusCode == 200) {
-        setRefreshProgressBar(-1);
-        setRefreshText('앱 업데이트 설치');
-        
-        // 3초 뒤에 해더 제거
-        setTimeout(() => {
-          setIsHeaderEnable(false);
-        }, 3000);
-        console.log("res for saving file===", result);
+        if(res?.respInfo.status == 200) {
+          setRefreshProgressBar(-1);
+          setRefreshText('앱 업데이트 설치');
+          
+          // 3초 뒤에 해더 제거
+          setTimeout(() => {
+            setIsHeaderEnable(false);
+          }, 3000);
+          console.log("res for saving file===", res);
 
-        RNApkInstallerN.install(downloadfilePath);
+          RNApkInstallerN.install(downloadfilePath);
+          // RNFetchBlob.android.actionViewIntent(
+          //   res.path(),
+          //   "application/vnd.android.package-archive"
+          // );
 
-      } else {
-        throw result.statusCode;
-      }
+        } else {
+          // throw result.statusCode;
+          throw res?.respInfo.status;
+        }
+      });
 
     } catch (e) {
 
@@ -816,7 +862,7 @@ const MainScreen = ({navigation, route}) => {
 
 
       // download update.json
-      const url = 'http://repo.senia.kr/sem/update.json';
+      const url = 'https://git.senia.kr/update.json';
       const downloadfilePath = `file://${RNFS.CachesDirectoryPath}/update.json`;
 
       // update.json이 이미 있는 경우 삭제
@@ -1242,7 +1288,7 @@ const MainScreen = ({navigation, route}) => {
                 const pastVersionListPath = `file://${RNFS.CachesDirectoryPath}/${value.package}/past_version_list.json`;
                 if (needPastVersionList) {
                   // 서버에서 past_version_list.json 다운로드
-                  console.log('download :: ', value.past_version_list);
+                  console.log('download PAST VERSION LIST :: ', value.past_version_list);
                   const pastVersionList_ret = RNFS.downloadFile({
                     fromUrl: value.past_version_list,
                     toFile: pastVersionListPath,
@@ -1488,7 +1534,7 @@ const MainScreen = ({navigation, route}) => {
         let installAppLabel = '';
 
         try {
-          console.log('managedAppList ::: ', managedAppList.current.app);
+          // console.log('managedAppList ::: ', managedAppList.current.app);
 
           const temp = await NativeModules.InstalledApps.getApps();
       
@@ -1769,6 +1815,23 @@ const MainScreen = ({navigation, route}) => {
                       }
                     }}
                   />
+                  {/* <View style={{width: '100%', borderTopColor: '#a0a0a0', borderTopWidth: 1,}} />
+                  <MenuOption
+                    text='Aurora Store 설치'
+                    disabled={false}
+                    onSelect={async () => {
+                      await menuRef.current.close();
+                      navigation.navigate("OSSLicenseStack");
+                    }}
+                  />
+                  <MenuOption
+                    text='원스토어 설치'
+                    disabled={false}
+                    onSelect={async () => {
+                      await menuRef.current.close();
+                      navigation.navigate("OSSLicenseStack");
+                    }}
+                  /> */}
                   <View style={{width: '100%', borderTopColor: '#a0a0a0', borderTopWidth: 1,}} />
                   <MenuOption
                     text='오픈소스 라이선스'

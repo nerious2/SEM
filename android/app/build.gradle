@@ -143,8 +143,8 @@ android {
         applicationId "com.se.ebookmanager"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 13
-        versionName "1.0.04"
+        versionCode 14
+        versionName "1.0.05"
         // Enabling multidex support.
         multiDexEnabled true
     }
@@ -245,6 +245,7 @@ dependencies {
         implementation jscFlavor
     }
     implementation 'com.android.support:multidex:1.0.3'
+    implementation 'org.conscrypt:conscrypt-android:2.1.0'
 }
 
 // Run this once to be able to run the application with BUCK

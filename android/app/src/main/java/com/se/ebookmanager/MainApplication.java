@@ -17,6 +17,10 @@ import com.se.ebookmanager.InstalledAppsPackage;
 import com.facebook.react.bridge.JSIModulePackage; // <- add
 import com.swmansion.reanimated.ReanimatedJSIModulePackage; // <- add
 
+import java.security.Security;
+import javax.net.ssl.SSLContext;
+import org.conscrypt.OpenSSLProvider;
+
 public class MainApplication extends MultiDexApplication implements ReactApplication {
 
   private final ReactNativeHost mReactNativeHost =
@@ -55,6 +59,8 @@ public class MainApplication extends MultiDexApplication implements ReactApplica
   @Override
   public void onCreate() {
     super.onCreate();
+    Security.insertProviderAt(new org.conscrypt.OpenSSLProvider(), 1);
+
     SoLoader.init(this, /* native exopackage */ false);
     initializeFlipper(this, getReactNativeHost().getReactInstanceManager());
   }

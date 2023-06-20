@@ -28,9 +28,10 @@ import FastImage from 'react-native-fast-image';
 import AppVersionSelectList from './AppVersionSelectList';
 import { globalContext, formatBytes, androidAPItoVersion } from './GlobalContext';
 import { useNetInfo } from '@react-native-community/netinfo';
-import RNApkInstallerN from 'react-native-apk-installer-n';
 import ProgressBar from "react-native-animated-progress";
 import DeviceInfo from 'react-native-device-info';
+import RNFetchBlob from "rn-fetch-blob";
+import RNApkInstallerN from 'react-native-apk-installer-n';
 
 /* Peer List Context */
 const appVersionSelectContext = createContext();
@@ -171,7 +172,8 @@ export default function AppVersionSelectModal () {
         } else if (nowDownloadJobId != -1) {
             // 다운로드 취소
             setActionButtonText('취소 중');
-            RNFS.stopDownload(nowDownloadJobId);
+            // RNFS.stopDownload(nowDownloadJobId);
+            nowDownloadJobId.cancel((err) => {console.log("DOWNLOAD CANCELED ERROR : ", err)});
             console.log('stopDownload ', nowDownloadJobId);
 
             if (nowDownloadJobId == globalContextState.nowDownloadJobId) {
@@ -216,8 +218,8 @@ export default function AppVersionSelectModal () {
         try {
             const latestActionButtonText = actionButtonText;
             setActionButtonText('진행 중');
-
-            let jobId = -1;
+            setProgressBar(0);
+            // let jobId = -1;
 
             // update apk 파일이 이미 있는 경우 삭제
             const updateApkExist = await RNFS.exists(downloadfilePath);
@@ -229,71 +231,95 @@ export default function AppVersionSelectModal () {
             }
 
 
-            // 자체 타임아웃 구현
-            const downloadTimeout = setTimeout(() => {
-                console.log('jobid :: ', jobId);
-                if (jobId != -1) {
-                    RNFS.stopDownload(jobId);
-                    console.log('stopDownload ', jobId);
+            // // 자체 타임아웃 구현
+            // const downloadTimeout = setTimeout(() => {
+            //     console.log('jobid :: ', jobId);
+            //     if (jobId != -1) {
+            //         RNFS.stopDownload(jobId);
+            //         console.log('stopDownload ', jobId);
 
-                    globalContextDispatch({
-                        type: 'SET_NOW_DOWNLOAD_JOBID',
-                        payload: -1
-                    });
-                }
+            //         globalContextDispatch({
+            //             type: 'SET_NOW_DOWNLOAD_JOBID',
+            //             payload: -1
+            //         });
+            //     }
 
-                setNowDownloadJobId(-1);
-                setProgressBar(0);
+            //     setNowDownloadJobId(-1);
+            //     setProgressBar(0);
 
-                ToastAndroid.show('서버에 연결하는데 실패했습니다.', ToastAndroid.SHORT);
-                setActionButtonText(latestActionButtonText);
+            //     ToastAndroid.show('서버에 연결하는데 실패했습니다.', ToastAndroid.SHORT);
+            //     setActionButtonText(latestActionButtonText);
 
-                console.log('====== timeout :');
-            }, 30000);
+            //     console.log('====== timeout :');
+            // }, 30000);
         
-            const ret = RNFS.downloadFile({
-                fromUrl: url,
-                toFile: downloadfilePath,
-                connectionTimeout: 30000,
-                readTimeout: 30000,
-                progressInterval: 500,
-                // progressDivider: 10,
-                begin: (res) => {
-                    clearTimeout(downloadTimeout);
-                    console.log("Response begin ===\n\n");
-                    console.log(res);
-                    if (res.statusCode == 200) {
-                        setProgressBar(0);
+            // const ret = RNFS.downloadFile({
+            //     fromUrl: url,
+            //     toFile: downloadfilePath,
+            //     connectionTimeout: 30000,
+            //     readTimeout: 30000,
+            //     progressInterval: 500,
+            //     // progressDivider: 10,
+            //     begin: (res) => {
+            //         clearTimeout(downloadTimeout);
+            //         console.log("Response begin ===\n\n");
+            //         console.log(res);
+            //         if (res.statusCode == 200) {
+            //             setProgressBar(0);
                         
-                    } else {
-                        ToastAndroid.show('다운로드에 실패했습니다. 잠시 후 다시 시도하세요.', ToastAndroid.SHORT);
-                        setActionButtonText(latestActionButtonText);
-                        setNowDownloadJobId(-1);
-                        setProgressBar(0);
-                    }
-                },
-                progress: (res) => {
-                    //here you can calculate your progress for file download
+            //         } else {
+            //             ToastAndroid.show('다운로드에 실패했습니다. 잠시 후 다시 시도하세요.', ToastAndroid.SHORT);
+            //             setActionButtonText(latestActionButtonText);
+            //             setNowDownloadJobId(-1);
+            //             setProgressBar(0);
+            //         }
+            //     },
+            //     progress: (res) => {
+            //         //here you can calculate your progress for file download
             
-                    console.log("Response written ===\n\n");
-                    let progressPercent = (res.bytesWritten / res.contentLength) * 100; // to calculate in percentage
-                    console.log("\n\nprogress===", progressPercent)
-                    setProgressBar(progressPercent);
-                    // this.setState({ progress: progressPercent.toString() });
-                    // item.downloadProgress = progressPercent;
-                    console.log(res);
-                }
+            //         console.log("Response written ===\n\n");
+            //         let progressPercent = (res.bytesWritten / res.contentLength) * 100; // to calculate in percentage
+            //         console.log("\n\nprogress===", progressPercent)
+            //         setProgressBar(progressPercent);
+            //         // this.setState({ progress: progressPercent.toString() });
+            //         // item.downloadProgress = progressPercent;
+            //         console.log(res);
+            //     }
+            // });
+            // console.log('set jobId ::: ', ret.jobId);
+
+
+            const ret = RNFetchBlob.config({
+                trusty: true,
+                path: downloadfilePath,
+            }).fetch(
+                "GET",
+                url,
+            ).progress((received, total) => {
+                // console.log("Response written ===\n\n");
+                let progressPercent = (received / total) * 100; // to calculate in percentage
+                console.log("progress===", progressPercent)
+                setProgressBar(progressPercent);
+                // this.setState({ progress: progressPercent.toString() });
+                // item.downloadProgress = progressPercent;
             });
-            console.log('set jobId ::: ', ret.jobId);
-            setNowDownloadJobId(ret.jobId);
+
+            // === react-native-fs
+            // setNowDownloadJobId(ret.jobId);
+            // === rn-fetch-blob
+            setNowDownloadJobId(ret);
 
             globalContextDispatch({
                 type: 'SET_NOW_DOWNLOAD_JOBID',
-                payload: ret.jobId
+                // === react-native-fs
+                // payload: ret.jobId
+                // === rn-fetch-blob
+                payload: ret
             });
-            jobId = ret.jobId;
+            // jobId = ret.jobId;
     
-            ret.promise.then(res => {
+            // ret.promise.then(res => {
+            ret.then((res) => {
 
                 globalContextDispatch({
                     type: 'SET_NOW_DOWNLOAD_JOBID',
@@ -303,7 +329,10 @@ export default function AppVersionSelectModal () {
                 setNowDownloadJobId(-1);
                 setProgressBar(0);
 
-                if(res.statusCode == 200) {
+                // === react-native-fs
+                // if(res.statusCode == 200) {
+                // === rn-fetch-blob
+                if(res?.respInfo.status == 200) {
                     // AppState.addEventListener('change', handleAppStateChange);
                     // setProgressBar(100);
                     setActionButtonText('설치 중');
@@ -322,6 +351,10 @@ export default function AppVersionSelectModal () {
                     });
 
                     RNApkInstallerN.install(downloadfilePath);
+                    // RNFetchBlob.android.actionViewIntent(
+                    //     res.path(),
+                    //     "application/vnd.android.package-archive"
+                    // );
                 }
             }).catch(error => {
 
@@ -330,7 +363,10 @@ export default function AppVersionSelectModal () {
                     payload: -1
                 });
 
-                if (error.message.includes('Download has been aborted')) {
+                // === react-native-fs
+                // if (error.message.includes('Download has been aborted')) {
+                // === rn-fetch-blob
+                if (error.message.includes('canceled')) {
                     ToastAndroid.show('다운로드를 취소했습니다.', ToastAndroid.SHORT);
                 } else {
                     ToastAndroid.show('다운로드에 실패했습니다. 잠시 후 다시 시도하세요.', ToastAndroid.SHORT);
