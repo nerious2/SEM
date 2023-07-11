@@ -95,6 +95,9 @@ function AppListItem({item, index, scrollEnable}) {
     // new version Ref
     const newVersion = useRef('');
 
+    // new version code Ref
+    const newVersionCode = useRef('');
+
     // new version file size Ref
     const newApkSize = useRef('');
 
@@ -368,29 +371,29 @@ function AppListItem({item, index, scrollEnable}) {
         // 저장소 권한 확인
         async function requestPermission() {
             try {
-                const granted = await PermissionsAndroid.requestMultiple([PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE, PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE
-                ]).then((result)=>{
-                    if(result['android.permission.READ_EXTERNAL_STORAGE'] && result['android.permission.WRITE_EXTERNAL_STORAGE'] ==='granted'){
-                        console.log('모든 권한 획득')
-                        return true;
-                    }
-                    else{
-                        console.log('거절된 권한있음')
-                        return false;
-                    }
-                })
+                const granted = await PermissionsAndroid.requestMultiple([PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE, PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE]);
+                
+                if(granted['android.permission.READ_EXTERNAL_STORAGE'] && granted['android.permission.WRITE_EXTERNAL_STORAGE'] ==='granted'){
+                    console.log('모든 권한 획득')
+                    return true;
+                }
+                else{
+                    console.log('거절된 권한있음')
+                    return false;
+                }
+   
             } catch (err) {
                 console.warn(err);
                 return false;
             }
         }
         const reqPerm = await requestPermission();
-        if (reqPerm === false) {
+        if (reqPerm == false) {
             ToastAndroid.show('저장소 권한이 필요합니다. 저장소 권한을 허용해주세요.', ToastAndroid.SHORT);
             return;
         }
 
-        const downloadfilePath = `${RNFetchBlob.fs.dirs.DownloadDir}/${item.label}_${item.versionName}.apk`;
+        const downloadfilePath = `${RNFetchBlob.fs.dirs.DownloadDir}/${item.label}_${item.version}.apk`;
         console.log('Download APK File : ', downloadfilePath);
 
         // 다른 다운로드 작업 진행중 or 새로고침 중일 경우 예외처리
@@ -465,7 +468,7 @@ function AppListItem({item, index, scrollEnable}) {
                     setActionButtonText(latestActionButtonText);
                     console.log("res for saving file===", res);
     
-                    ToastAndroid.show(`Download 폴더에 APK 파일이 저장되었습니다.\n${item.label}_${item.versionName}.apk`, ToastAndroid.SHORT);
+                    ToastAndroid.show(`Download 폴더에 APK 파일이 저장되었습니다.\n${item.label}_${item.version}.apk`, ToastAndroid.SHORT);
   
                 }
             }).catch(error => {
@@ -783,6 +786,8 @@ function AppListItem({item, index, scrollEnable}) {
 
         // new version setting
         newVersion.current = item?.versionName && item?.is_patched && item.versionName.toUpperCase().includes('PATCH_V') ? item.patch_info.version : item.version;
+        // new version code setting
+        newVersionCode.current = item?.versionCode && item?.is_patched && item.versionName.toUpperCase().includes('PATCH_V') ? item.patch_info.version_code : item.version_code;
         // new apk size setting
         newApkSize.current = item?.versionName && item?.is_patched && item.versionName.toUpperCase().includes('PATCH_V') ? item.patch_info.apk_size : item.apk_size;
 
@@ -792,6 +797,7 @@ function AppListItem({item, index, scrollEnable}) {
             // 버전이 존재하는 경우 -> 설치된 앱
             // 해당 앱이 버전 선택 가능한 앱이며 (item.is_past_version) 해당 버전대가 설치된 경우는 실행으로 띄워야함
             if (item?.is_past_version !== undefined && item.is_past_version) {
+                console.log(`package ${item.package} / versionCode ${item.versionCode} newVersionCode ${newVersionCode.current}`)
                 
                 const result = item?.past_version_list?.version_list?.filter((item2) => item2?.version === item.versionName);
                 console.log(`${item.package}  result length :: ${result?.length}`)
@@ -804,14 +810,14 @@ function AppListItem({item, index, scrollEnable}) {
                     console.log('ssssssssssssssss  :: failed');
                     setIsPastVersion(false);
 
-                    if (!tempNotNotifyUpdate && item.versionName !== newVersion.current && item.is_update_target && Platform.Version >= item.minimum_android_sdk) {
+                    if (!tempNotNotifyUpdate && item.versionName !== newVersion.current && item.is_update_target && item.versionCode <= newVersionCode.current && Platform.Version >= item.minimum_android_sdk) {
                         str = '업데이트';
                     } else {
                         str = '실행';
                     }
                 }
 
-            } else if (!tempNotNotifyUpdate && item.versionName !== newVersion.current && item.is_update_target && Platform.Version >= item.minimum_android_sdk) {
+            } else if (!tempNotNotifyUpdate && item.versionName !== newVersion.current && item.is_update_target && item.versionCode <= newVersionCode.current && Platform.Version >= item.minimum_android_sdk) {
                 setIsPastVersion(false);
                 str = '업데이트';
             } else {
@@ -861,6 +867,7 @@ function AppListItem({item, index, scrollEnable}) {
                         update_log: item?.update_history_contents?.update_log,
                         isPatched: item?.is_patched,
                         version: item.version,
+                        isInstalledToNew: (item?.versionName != newVersion.current) && (item.versionCode > newVersionCode.current),
                         date: item.date,
                         minimumAndroidSdk: item.minimum_android_sdk,
                     },
@@ -913,7 +920,7 @@ function AppListItem({item, index, scrollEnable}) {
                             {
                                 // versionName : 현재 기기에 설치된 앱 버전
                                 // version : 서버에서 감지된 앱 최신 버전
-                                item?.versionName && (item?.versionName != newVersion.current) && (
+                                item?.versionName && (item?.versionName != newVersion.current) && (item.versionCode <= newVersionCode.current) && (
                                     <Text style={styles.appVersion} numberOfLines={1}>{item.versionName} {!isPastVersion && '→'} </Text>
                                 )
                             }
@@ -921,9 +928,9 @@ function AppListItem({item, index, scrollEnable}) {
                                 !isPastVersion && (
                                     <Text style={[
                                         {
-                                            fontWeight: item?.versionName && (item?.versionName !== newVersion.current) 
+                                            fontWeight: item?.versionName && (item?.versionName !== newVersion.current) && (item.versionCode <= newVersionCode.current)
                                             ? 'bold' : 'normal',
-                                            textDecorationLine: item?.versionName && (item?.versionName !== newVersion.current) && Platform.Version < item.minimum_android_sdk
+                                            textDecorationLine: item?.versionName && (item?.versionName !== newVersion.current) && (item.versionCode <= newVersionCode.current) && Platform.Version < item.minimum_android_sdk
                                             ? 'line-through' : 'none',
                                             flex: 1,
                                         },
@@ -931,7 +938,7 @@ function AppListItem({item, index, scrollEnable}) {
                                     ]}
                                     numberOfLines={1}
                                     >
-                                        {newVersion.current}
+                                        {item?.versionCode && (item?.versionName != newVersion.current) && (item.versionCode > newVersionCode.current) ? '*'+item.versionName : newVersion.current}
                                     </Text>
                                 )
                             }

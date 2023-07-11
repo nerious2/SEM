@@ -212,6 +212,9 @@ export default function AppDetailModal () {
                         
                         <View style={{marginHorizontal: 10, marginBottom: 15,}}>
                             <Text style={{fontWeight: 'bold', fontSize: 16, marginVertical: 15, lineHeight: 19,}}>새로운 기능</Text>
+                            {appDetailContextState.isInstalledToNew &&
+                                <Text style={{fontSize: 12, lineHeight: 15, marginBottom: 5, fontWeight: 'bold',}}>현재 기기에 설치된 버전이 모두의 이북에서 제공하는 버전보다 최신입니다.</Text>
+                            }
                             <Text style={{fontSize: 12, lineHeight: 15,}}>{`[버전 : ${appDetailContextState.version} / 업데이트 날짜 : ${appDetailContextState.date}]`}</Text>
                             
                             

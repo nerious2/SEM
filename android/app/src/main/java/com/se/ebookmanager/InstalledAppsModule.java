@@ -119,11 +119,12 @@ public class InstalledAppsModule extends ReactContextBaseJavaModule {
                         // versionName, versionCode 추가
                         app.put("versionName", p.versionName);
 
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                            app.put("versionCode", p.getLongVersionCode());
-                        } else {
-                            app.put("versionCode", p.versionCode);
-                        }
+                        // if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        //     app.put("versionCode", p.getLongVersionCode());
+                        // } else {
+                        //     app.put("versionCode", p.versionCode);
+                        // }
+                        app.put("versionCode", Build.VERSION.SDK_INT >= Build.VERSION_CODES.P ? p.getLongVersionCode() : p.versionCode);
 
                         //app.put("icon", p.applicationInfo.loadIcon(this.reactContext.getPackageManager());
 

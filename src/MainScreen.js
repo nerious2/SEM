@@ -675,8 +675,11 @@ const MainScreen = ({navigation, route}) => {
     const a_newVersion = a.versionName.toUpperCase().includes('PATCH_V') ? a.patch_info.version : a.version;
     const b_newVersion = b.versionName.toUpperCase().includes('PATCH_V') ? b.patch_info.version : b.version;
 
-    let a_isUpdated = (a_isNotNotify.length === 0 && !a?.is_past_version_installed && a.versionName !== a_newVersion && a.is_update_target && Platform.Version >= a.minimum_android_sdk) ? true : false;
-    let b_isUpdated = (b_isNotNotify.length === 0 && !b?.is_past_version_installed && b.versionName !== b_newVersion && b.is_update_target && Platform.Version >= b.minimum_android_sdk) ? true : false;
+    const a_newVersionCode = a.versionName.toUpperCase().includes('PATCH_V') ? a.patch_info.version_code : a.version_code;
+    const b_newVersionCode = b.versionName.toUpperCase().includes('PATCH_V') ? b.patch_info.version_code : b.version_code;
+
+    let a_isUpdated = (a_isNotNotify.length === 0 && !a?.is_past_version_installed && a.versionName !== a_newVersion && a.versionCode <= a_newVersionCode && a.is_update_target && Platform.Version >= a.minimum_android_sdk) ? true : false;
+    let b_isUpdated = (b_isNotNotify.length === 0 && !b?.is_past_version_installed && b.versionName !== b_newVersion && b.versionCode <= b_newVersionCode && b.is_update_target && Platform.Version >= b.minimum_android_sdk) ? true : false;
 
     // console.log(`[ascendInstalledApp] ${a.package} a_isUpdated : ${a_isUpdated}, ${b.package} b_isUpdated : ${b_isUpdated}`);
     // console.log(`[ascendInstalledApp] ${a.label.toLowerCase() > b.label.toLowerCase()} ${a.label.toLowerCase() < b.label.toLowerCase()}, ${a.label.toLowerCase() == b.label.toLowerCase()}\n`);
